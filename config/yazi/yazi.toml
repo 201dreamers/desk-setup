@@ -1,0 +1,34 @@
+[opener]
+# Custom opener for VS Code (GUI)
+cursor = [
+    { run = 'cursor "$@"', orphan = true, desc = "Cursor" }
+]
+
+# Custom opener for Google Chrome (Mac specific app launcher)
+chrome = [
+    { run = 'open -a "Google Chrome" "$@"', orphan = true, desc = "Google Chrome" }
+]
+
+numbers = [
+    { run = "open -a 'Numbers' \"$@\"", desc = "Open with Numbers", orphan = true },
+]
+
+# Custom opener for a terminal tool (like view text in nano)
+# nano = [
+#     { run = 'nano "$@"', block = true, desc = "Nano Editor" }
+# ]
+
+
+[open]
+rules = [
+    { url = "*.md", use = [ "edit", "cursor" ], block = true },
+    { url = "*.txt", use = [ "edit", "cursor" ], block = true },
+    { url = "*.csv", use = [ "edit", "numbers", "cursor" ], block = true },
+
+    { mime = "text/html", use = [ "edit", "chrome", "cursor" ], block = true },
+    { mime = "application/json", use = [ "edit", "cursor" ], block = true },
+    { mime = "text/*", use = [ "edit", "cursor" ], block = true },
+    { mime = "video/*", use = [ "chrome", "reveal" ], block = true },
+    { mime = "image/*", use = [ "reveal", "chrome" ], block = true },
+    { mime = "application/x-empty", use = [ "edit" ], block = true }
+]

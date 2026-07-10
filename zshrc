@@ -1,0 +1,123 @@
+eval "$(starship init zsh)"
+autoload -U history-search-end
+
+zle -N history-beginning-search-backward-end history-search-end
+zle -N history-beginning-search-forward-end history-search-end
+
+# =============
+# ===> ABM <===
+# =============
+
+export EDITOR=nvim
+
+# History file location
+HISTFILE=~/.zsh_history
+
+# How many lines to keep in the current session
+HISTSIZE=10000
+
+# How many lines to save in the history file
+SAVEHIST=10000
+
+# Write to the history file immediately, not when the shell exits.
+setopt INC_APPEND_HISTORY
+
+# Share history between different terminal windows/Tmux panes
+setopt SHARE_HISTORY
+
+# Do not write duplicate entries
+setopt HIST_IGNORE_ALL_DUPS
+
+# Remove extra blanks from each command line being added to history
+setopt HIST_REDUCE_BLANKS
+
+# Set up fzf key bindings and fuzzy completion
+source <(fzf --zsh)
+
+# Exports
+extra_path_paths=(
+    "${HOME}/.local/bin"
+    "${HOME}/bin"
+)
+PATH="$PATH:$(IFS=:; printf '%s' "${extra_path_paths[*]}")"
+export PATH
+
+export FZF_DEFAULT_COMMAND='rg --no-ignore --files --hidden --glob "!.git"'
+export PYTHONBREAKPOINT="ipdb.set_trace"
+
+# Functions
+function ppath {
+    python3 -c 'import os; from pprint import pprint; pprint(os.getenv("PYTHONPATH", "").split(":"))'
+}
+
+function pp {
+    python3 -c "from pprint import pprint as pp; pp(${1})"
+}
+
+# cd to folder from fzf starting search in ${HOME} dir
+# go home
+function fh {
+    local path
+    path=$(fd -L -H -I -t d --base-directory ${HOME} | fzf)
+    if [[ ${?} == 0 ]]; then
+        print -s "cd ${path}"  # add command to history
+        cd ${path}
+    fi
+}
+
+# Open file from fzf in nvim starting in current dir
+# fzf vim current
+function fvc {
+    local file
+    file=$(fzf)
+    if [[ ${?} == 0 ]]; then
+        print -s "nvim ${file}"  # add command to history
+        nvim ${file}
+    fi
+}
+
+# Open file from fzf in nvim starting in ${HOME} dir
+# fzf vim home
+function fvh {
+    local file
+    file=$(rg --no-ignore --files --hidden --glob "!.git" ${HOME} | fzf)
+    if [[ ${?} == 0 ]]; then
+        print -s "nvim ${file}"  # add command to history
+        nvim ${file}
+    fi
+}
+
+function y {
+	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+	command yazi "$@" --cwd-file="$tmp"
+	IFS= read -r -d '' cwd < "$tmp"
+	[ "$cwd" != "$PWD" ] && [ -d "$cwd" ] && builtin cd -- "$cwd"
+	command rm -f -- "$tmp"
+}
+
+# Aliases
+alias ll='ls -lah'
+alias lg=lazygit
+alias nv=nvim
+alias nvnp='nvim --noplugin'
+
+# Bindings
+bindkey '^p' history-beginning-search-backward-end
+bindkey '^n' history-beginning-search-forward-end
+bindkey '^[[A' history-beginning-search-backward-end
+bindkey '^[[B' history-beginning-search-forward-end
+
+
+# Auto-start or attach to tmux
+if [ -z "$TMUX" ] && [ -n "$PS1" ]; then
+    tmux attach-session -t $(tmux list-sessions -F '#{session_id}' 2>/dev/null | tail -n 1) 2>/dev/null || tmux new-session
+fi
+
+
+
+
+# Added by Antigravity CLI installer
+export PATH="/Users/dhakman/.local/bin:$PATH"
+
+# Added by Antigravity IDE
+export PATH="/Users/dhakman/.antigravity-ide/antigravity-ide/bin:$PATH"
