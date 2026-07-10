@@ -157,12 +157,13 @@ backup_and_link() {
 
 # 6. Run linking logic
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_CONFIG_DIR="$REPO_DIR/config"
+DOTFILES_DIR="$REPO_DIR/dotfiles"
+REPO_CONFIG_DIR="$DOTFILES_DIR/config"
 
 log_info "Creating configuration symlinks..."
 
 # Link .zshrc
-link_config "$REPO_DIR/zshrc" "$HOME/.zshrc"
+link_config "$DOTFILES_DIR/zshrc" "$HOME/.zshrc"
 
 # Dynamically link all packages inside the repo config/ directory to ~/.config/
 if [[ -d "$REPO_CONFIG_DIR" ]]; then

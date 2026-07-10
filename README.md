@@ -8,14 +8,18 @@ This repository contains configuration files (dotfiles) for system tools and app
 desk-setup/
 ├── install.sh             # Installer and symlinking script
 ├── README.md              # Documentation
-├── zshrc                  # Shell configuration (~/.zshrc)
-└── config/                # Configurations mapped to ~/.config/
-    ├── nvim/              # Neovim settings
-    ├── tmux/              # tmux settings
-    ├── yazi/              # yazi file manager settings
-    ├── skhd/              # skhd hotkey daemon config
-    ├── yabai/             # yabai tiling window manager config
-    └── starship.toml      # starship prompt settings
+└── dotfiles/              # Container folder for all configs
+    ├── zshrc              # Shell configuration (~/.zshrc)
+    ├── keymaps.ahk        # Windows AutoHotkey keymaps
+    ├── desktop_files/     # Desktop application launchers (Linux)
+    │   └── vial.desktop   # Linux Vial desktop configuration
+    └── config/            # Configurations mapped to ~/.config/
+        ├── nvim/          # Neovim settings
+        ├── tmux/          # tmux settings
+        ├── yazi/          # yazi file manager settings
+        ├── skhd/          # skhd hotkey daemon config
+        ├── yabai/         # yabai tiling window manager config
+        └── starship.toml  # starship prompt settings
 ```
 
 ## Setup Instructions
