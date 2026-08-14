@@ -1,0 +1,290 @@
+{
+    // ========================
+    // == MY COMMON SETTINGS ==
+    // ========================
+    "files.eol": "\n",
+    "editor.minimap.enabled": false,
+    "editor.lineNumbers": "relative",
+    "editor.rulers": [79, 119],
+    // "editor.fontFamily": " 'FiraCode Nerd Font Mono', 'Droid Sans Mono', 'monospace', monospace",
+    "editor.fontSize": 13,
+    "breadcrumbs.enabled": false,
+    "workbench.tree.indent": 16,
+    "workbench.tree.renderIndentGuides": "always",
+    "workbench.statusBar.visible": true,
+    "workbench.sideBar.location": "right",
+
+    "window.zoomLevel": 0,
+    "window.newWindowDimensions": "maximized",
+    "window.restoreFullscreen": true,
+
+    "zenMode.centerLayout": true,
+    // ============================
+    // == END MY COMMON SETTINGS ==
+    // ============================
+
+    // ==================
+    // == PYTHON STUFF ==
+    // ==================
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit",
+        },
+        "editor.gotoLocation.multipleDefinitions": "goto",
+        "editor.gotoLocation.multipleDeclarations": "goto",
+        "editor.gotoLocation.multipleImplementations": "goto",
+        "editor.gotoLocation.multipleReferences": "peek",
+    },
+    "mypy-type-checker.args": [ "--check-untyped-defs" ],
+    "notebook.formatOnSave.enabled": true,
+    "ruff.lint.extendSelect": [
+        // pycodestyle
+        "E",
+        // Pyflakes
+        "F",
+        // pyupgrade
+        "UP",
+        // flake8-bugbear
+        "B",
+        // flake8-simplify
+        "SIM",
+        // isort
+        "I",
+        // flake8-bandit
+        "S",
+        // flake8-pytest-style
+        "PT"
+    ],
+    "ruff.lint.ignore": ["S101", "PT013", "PT006", "PT007"],
+    "python.testing.pytestEnabled": true,
+    "python.analysis.typeCheckingMode": "basic",
+    // ======================
+    // == END PYTHON STUFF ==
+    // ======================
+
+    // ===================
+    // == multi-command ==
+    // ===================
+    "multiCommand.commands": [
+        {
+            "command": "multiCommand.quickOpenPercent",
+            "sequence": [
+                {
+                    "command": "workbench.action.quickOpen"
+                },
+                {
+                    "command": "type",
+                    "args": { "text": "%" }
+                }
+            ]
+        }
+    ],
+    // =======================
+    // == END multi-command ==
+    // =======================
+
+    // =========
+    // == VIM ==
+    // =========
+    "vim.smartcase": true,
+    "vim.camelCaseMotion.enable": true,
+    "vim.sneak": false,
+    "vim.changeWordIncludesWhitespace": true,
+    "vim.easymotion": true,
+    "vim.enableNeovim": true,
+    "vim.highlightedyank.enable": true,
+    "vim.hlsearch": true,
+    "vim.leader": "<space>",
+    "vim.disableExtension": false,
+    "vim.foldfix": true,
+    "vim.handleKeys": {
+        "<C-n>": true,
+        "<C-h>": true,
+        "<C-l>": true,
+        "<C-k>": true,
+        "<C-j>": true
+    },
+    // =============================
+    // == Normal mode keybindings ==
+    // =============================
+    "vim.normalModeKeyBindingsNonRecursive": [
+        // == General
+        { // <leader>-r :: Open command palette
+            "before": [ "<leader>", "r" ],
+            "commands": [ "workbench.action.showCommands" ],
+        },
+        { // <leader>-t-n :: turn off highlighting
+            "before": [ "<leader>", "t", "n" ],
+            "commands": [ ":nohl" ]
+        },
+        { // <leader>-w :: save file
+            "before": [ "<leader>", "w" ],
+            "commands": [ "workbench.action.files.save" ]
+        },
+
+        // == Search
+        { // <leader>-f :: Search for files
+            "before": [ "<leader>", "f" ],
+            "commands": [ "workbench.action.quickOpen" ],
+        },
+        { // <leader>-/ :: grep without regexp; To use regex, use Ctrl+Shift+F
+            "before": [ "<leader>", "/" ],
+            "commands": [
+                { "command": "workbench.action.quickOpen", "args": "%" }
+            ],
+        },
+        { // <leader>-t-f :: vscode built-in search in file
+            "before": [ "<leader>", "t", "f" ],
+            "commands": [ "actions.find" ]
+        },
+
+        // == Copy/paste
+        { // <leader>-Y :: Line to clipboard
+            "before": [ "<leader>", "Y" ],
+            "after": [ "\"", "+", "Y" ]
+        },
+
+        // == Splits
+        { // <leader>-v :: open vertical split
+            "before": ["<leader>", "v"],
+            "commands": [":vsplit"]
+        },
+        { // <leader>-s :: open horizontal split
+            "before": ["<leader>", "s"],
+            "commands": [":split"]
+        },
+        { // <C-h> :: move to left split
+            "before": [ "<C-h>" ],
+            "after": [ "<C-w>", "<left>" ]
+        },
+        { // <C-l> :: move to right split
+            "before": [ "<C-l>" ],
+            "after": [ "<C-w>", "<right>" ]
+        },
+        { // <C-k> :: move to up split
+            "before": [ "<C-k>" ],
+            "after": [ "<C-w>", "<up>" ]
+        },
+        { // <C-j> :: move to down split
+            "before": [ "<C-j>" ],
+            "after": [ "<C-w>", "<down>" ]
+        },
+
+        // == Buffers
+        { // <leader>-b :: filter open files
+            "before": [ "<leader>", "b" ],
+            "commands": [
+                { "command": "workbench.action.quickOpen", "args": "edt mru " }
+            ],
+        },
+        { // <leader>x :: close buffer
+            "before": [ "<leader>", "x" ],
+            "commands": [ "workbench.action.closeActiveEditor" ]
+        },
+        { // <leader>x :: close buffer
+            "before": [ "<leader>", "t", "x" ],
+            "commands": [ "workbench.action.closeOtherEditors" ]
+        },
+        { // <S-h> :: previours buffer
+            "before": ["<S-h>"],
+            "commands": [":bprevious"]
+        },
+        { // <S-l> :: next buffer
+            "before": ["<S-l>"],
+            "commands": [":bnext"]
+        },
+
+        // == Cursors
+        { // <C-Up> :: add cursor above
+            "before": [ "<C-Up>" ],
+            "commands": [ "editor.action.insertCursorAbove" ]
+        },
+        { // <C-Down> :: add cursor below
+            "before": [ "<C-Down>" ],
+            "commands": [ "editor.action.insertCursorBelow" ]
+        },
+
+        // == Better movements
+        {
+            "before": [ "n" ],
+            "after": [ "n", "z", "z" ]
+        },
+        {
+            "before": [ "N" ],
+            "after": [ "N", "z", "z" ]
+        },
+        {
+            "before": [ "<C-d>" ],
+            "after": [ "<C-d>", "z", "z" ]
+        },
+        {
+            "before": [ "<C-u>" ],
+            "after": [ "<C-u>", "z", "z" ]
+        },
+
+        // == Code
+        { // K :: show definition docs
+            "before": ["K"],
+            "commands": ["editor.action.showDefinitionPreviewHover"]
+        }
+    ],
+    // =============================
+    // == Insert mode keybindings ==
+    // =============================
+    "vim.insertModeKeyBindings": [
+        // == Suggestions
+        { // <C-y> :: Accept selected suggestion
+            "before": [ "<C-y>" ],
+            "commands": [ "acceptSelectedSuggestion" ]
+        },
+    ],
+    // =============================
+    // == Visual mode keybindings ==
+    // =============================
+    "vim.visualModeKeyBindings": [
+        // == Copy/paste
+        { // <leader>-y :: Copy to clipboard
+            "before": [ "<leader>", "y" ],
+            "commands": [
+                "editor.action.clipboardCopyAction",
+                "extension.vim_escape"
+            ],
+        },
+        { // <leader>-d :: Delete to void
+            "before": [ "<leader>", "d" ],
+            "after": [ "\"", "_", "d" ]
+        },
+        { // <leader>-p :: Paste over
+            "before": [ "<leader>", "p" ],
+            "after": [ "\"", "_", "d", "P" ]
+        },
+
+        // == Better movements
+        { // > :: indent right
+            "before": [ ">" ],
+            "commands": [ "editor.action.indentLines" ]
+        },
+        { // < :: indent left
+            "before": [ "<" ],
+            "commands": [ "editor.action.outdentLines" ]
+        },
+
+        { // J - move block down
+            "before": ["J"], "commands": ["editor.action.moveLinesDownAction"]
+        },
+        { // K - move block up
+            "before": ["K"], "commands": ["editor.action.moveLinesUpAction"]
+        },
+    ],
+    // =============
+    // == END VIM ==
+    // =============
+
+    "diffEditor.ignoreTrimWhitespace": false,
+    "window.autoDetectColorScheme": false,
+    "workbench.colorTheme": "Kanagawa Dragon",
+    "workbench.iconTheme": "Monokai Pro (Filter Ristretto) Icons",
+    "chat.tips.enabled": false
+}

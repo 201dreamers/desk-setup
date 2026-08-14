@@ -123,16 +123,11 @@ ctrl + cmd - s: yabai -m space --layout stack
 ctrl + cmd - b: yabai -m space --layout bsp
 
 # Navigation
-ctrl + cmd - j : yabai -m window --focus stack.next || yabai -m window --focus stack.first
-ctrl + cmd - k : yabai -m window --focus stack.prev || yabai -m window --focus stack.last
+ctrl + cmd - j : /bin/sh -c 'yabai -m window --focus stack.next || yabai -m window --focus stack.first'
+ctrl + cmd - k : /bin/sh -c 'yabai -m window --focus stack.prev || yabai -m window --focus stack.last'
 
 # Jump to your absolute last workspace
 ctrl + cmd - l : yabai -m space --focus last
-
-
-# ctrl + cmd - h : yabai -m window --focus west
-# ctrl + cmd - j : yabai -m window --focus south
-# ctrl + cmd - k : yabai -m window --focus north
 # ctrl + cmd - l : yabai -m window --focus east
 
 

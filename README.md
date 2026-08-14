@@ -11,11 +11,16 @@ desk-setup/
 └── dotfiles/              # Container folder for all configs
     ├── zshrc              # Shell configuration (~/.zshrc)
     ├── keymaps.ahk        # Windows AutoHotkey keymaps
-    ├── desktop_files/     # Desktop application launchers (Linux)
-    │   └── vial.desktop   # Linux Vial desktop configuration
+    ├── ai/                # Unified global AI system (~/.ai)
+    │   ├── permissions.json # Master command execution whitelist
+    │   ├── sync.py        # Cross-tool config & symlink sync engine
+    │   ├── rules/         # Global system rules (Claude, Antigravity, Cursor)
+    │   └── skills/        # Shared Agent Skills (28 SKILL.md packages)
     └── config/            # Configurations mapped to ~/.config/
+        ├── ghostty/       # Ghostty terminal settings
         ├── nvim/          # Neovim settings
         ├── tmux/          # tmux settings
+        ├── vscode/        # VS Code & Cursor settings.json and keybindings.json
         ├── yazi/          # yazi file manager settings
         ├── skhd/          # skhd hotkey daemon config
         ├── yabai/         # yabai tiling window manager config

@@ -100,6 +100,7 @@ alias ll='ls -lah'
 alias lg=lazygit
 alias nv=nvim
 alias nvnp='nvim --noplugin'
+alias files='nohup nautilus . > /dev/null &'
 
 # Bindings
 bindkey '^p' history-beginning-search-backward-end
@@ -107,6 +108,8 @@ bindkey '^n' history-beginning-search-forward-end
 bindkey '^[[A' history-beginning-search-backward-end
 bindkey '^[[B' history-beginning-search-forward-end
 
+# Use Emacs-style keybindings in Zsh
+bindkey -e
 
 # Auto-start or attach to tmux
 if [ -z "$TMUX" ] && [ -n "$PS1" ]; then
@@ -117,7 +120,7 @@ fi
 
 
 # Added by Antigravity CLI installer
-export PATH="/Users/dhakman/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 # Added by Antigravity IDE
-export PATH="/Users/dhakman/.antigravity-ide/antigravity-ide/bin:$PATH"
+export PATH="$HOME/.antigravity-ide/antigravity-ide/bin:$PATH"

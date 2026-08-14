@@ -32,6 +32,14 @@ yabai -m config                                 \
     mouse_action2                resize         \
     mouse_drop_action            swap
 
+# ignore floating / utility-style Chrome Meet window
+yabai -m rule --add app="^Google Chrome$" title="^Meet -" manage=off sticky=on layer=above
+
+# common utility/floating dialogs
+yabai -m rule --add subrole="^AXFloatingWindow$" manage=off
+yabai -m rule --add subrole="^AXSystemDialog$" manage=off
+yabai -m rule --add subrole="^AXDialog$" manage=off
+
 echo "yabai configuration loaded.."
 
 

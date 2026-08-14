@@ -23,22 +23,29 @@ log_error() {
 
 # 1. Parse command-line arguments
 AUTO_BACKUP=false
+FORCE_OVERWRITE=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -y|--yes)
             AUTO_BACKUP=true
             shift
             ;;
+        -f|--force|--no-backup)
+            FORCE_OVERWRITE=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
-            echo "  -y, --yes      Automatically backup and overwrite existing configuration files"
-            echo "  -h, --help     Show this help message"
+            echo "  -y, --yes          Automatically backup and overwrite existing configuration files"
+            echo "  -f, --force        Force overwrite existing configuration files without creating .bak backups"
+            echo "  --no-backup        Alias for --force"
+            echo "  -h, --help         Show this help message"
             exit 0
             ;;
         *)
             log_error "Unknown option: $1"
-            echo "Usage: $0 [-y|--yes]"
+            echo "Usage: $0 [-y|--yes] [-f|--force|--no-backup]"
             exit 1
             ;;
     esac
@@ -92,6 +99,7 @@ BREW_PACKAGES=(
     yazi
     starship
     lazygit
+    ghostty
 )
 
 for pkg in "${BREW_PACKAGES[@]}"; do
@@ -118,7 +126,13 @@ link_config() {
     fi
 
     if [[ -e "$dest" || -L "$dest" ]]; then
-        if [ "$AUTO_BACKUP" = true ]; then
+        if [ "$FORCE_OVERWRITE" = true ]; then
+            log_info "Force overwriting $dest without backup..."
+            rm -rf "$dest"
+            mkdir -p "$(dirname "$dest")"
+            ln -s "$src" "$dest"
+            log_success "Linked: $dest -> $src"
+        elif [ "$AUTO_BACKUP" = true ]; then
             backup_and_link "$src" "$dest"
         else
             echo -n "File/directory $dest already exists. Back up and overwrite? [y/N] "
@@ -172,6 +186,26 @@ if [[ -d "$REPO_CONFIG_DIR" ]]; then
         name="$(basename "$item")"
         link_config "$item" "$HOME/.config/$name"
     done
+fi
+
+# Link ~/.ai configuration directory
+if [[ -d "$DOTFILES_DIR/ai" ]]; then
+    link_config "$DOTFILES_DIR/ai" "$HOME/.ai"
+    log_info "Synchronizing global AI settings across tools..."
+    bash "$HOME/.ai/sync.sh"
+fi
+
+# Link VS Code and Cursor User settings & keybindings
+VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
+CURSOR_USER_DIR="$HOME/Library/Application Support/Cursor/User"
+
+if [[ -d "$DOTFILES_DIR/config/vscode" ]]; then
+    log_info "Linking VS Code and Cursor configurations..."
+    link_config "$DOTFILES_DIR/config/vscode/settings.json" "$VSCODE_USER_DIR/settings.json"
+    link_config "$DOTFILES_DIR/config/vscode/keybindings.json" "$VSCODE_USER_DIR/keybindings.json"
+
+    link_config "$DOTFILES_DIR/config/vscode/settings.json" "$CURSOR_USER_DIR/settings.json"
+    link_config "$DOTFILES_DIR/config/vscode/keybindings.json" "$CURSOR_USER_DIR/keybindings.json"
 fi
 
 log_success "Dotfiles setup completed successfully!"
