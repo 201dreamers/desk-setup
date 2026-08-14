@@ -1,6 +1,6 @@
 # desk-setup
 
-This repository contains configuration files (dotfiles) for system tools and applications, along with an automated installer script for macOS environments.
+This repository contains configuration files (dotfiles) for system tools and applications, along with an automated installer script for macOS and Linux (Ubuntu/Debian) environments.
 
 ## Repository Layout
 

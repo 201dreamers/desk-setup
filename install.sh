@@ -54,47 +54,37 @@ done
 # 2. Platform detection
 log_info "Detecting system platform..."
 OS="$(uname -s)"
-if [[ "$OS" != "Darwin" ]]; then
-    if [[ "$OS" == "Linux" ]]; then
-        log_info "Linux system detected. Linux support is currently not implemented. Skipping."
-        exit 0
-    else
-        log_error "Unsupported operating system: $OS"
-        exit 1
-    fi
+if [[ "$OS" == "Darwin" ]]; then
+    IS_MACOS=true
+    IS_LINUX=false
+    log_success "macOS detected."
+elif [[ "$OS" == "Linux" ]]; then
+    IS_MACOS=false
+    IS_LINUX=true
+    log_success "Linux system detected."
+else
+    log_error "Unsupported operating system: $OS"
+    exit 1
 fi
-log_success "macOS detected. Proceeding with installation."
 
 # 3. Ensure Homebrew is installed and configured in PATH
 if ! command -v brew &>/dev/null; then
-    # Check common Homebrew installation paths for M-series or Intel Macs
+    # Check common Homebrew installation paths for macOS or Linux
     if [[ -x "/opt/homebrew/bin/brew" ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
     elif [[ -x "/usr/local/bin/brew" ]]; then
         eval "$(/usr/local/bin/brew shellenv)"
+    elif [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    elif [[ -x "$HOME/.linuxbrew/bin/brew" ]]; then
+        eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
     fi
 fi
-
-if ! command -v brew &>/dev/null; then
-    log_info "Homebrew not found. Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
-    # Configure path for the current shell session
-    if [[ -x "/opt/homebrew/bin/brew" ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    elif [[ -x "/usr/local/bin/brew" ]]; then
-        eval "$(/usr/local/bin/brew shellenv)"
-    fi
-fi
-log_success "Homebrew is ready."
 
 # 4. Install dependencies
-log_info "Installing dependencies via Homebrew..."
-BREW_PACKAGES=(
+PACKAGES=(
     uv
     neovim
-    yabai
-    skhd
     tmux
     yazi
     starship
@@ -102,15 +92,47 @@ BREW_PACKAGES=(
     ghostty
 )
 
-for pkg in "${BREW_PACKAGES[@]}"; do
-    if brew list "$pkg" &>/dev/null; then
-        log_info "$pkg is already installed."
-    else
-        log_info "Installing $pkg..."
-        brew install "$pkg"
+# Add macOS-specific window management packages
+if [ "$IS_MACOS" = true ]; then
+    PACKAGES+=(yabai skhd)
+fi
+
+if command -v brew &>/dev/null; then
+    log_info "Installing dependencies via Homebrew..."
+    for pkg in "${PACKAGES[@]}"; do
+        if brew list "$pkg" &>/dev/null; then
+            log_info "$pkg is already installed."
+        else
+            log_info "Installing $pkg..."
+            brew install "$pkg" || true
+        fi
+    done
+    log_success "Homebrew dependencies ready."
+elif [ "$IS_LINUX" = true ] && command -v apt-get &>/dev/null; then
+    log_info "Homebrew not found. Installing packages via apt-get where available..."
+    sudo apt-get update -qq || true
+    for pkg in neovim tmux zsh curl git; do
+        log_info "Checking $pkg..."
+        sudo apt-get install -y "$pkg" || true
+    done
+else
+    log_info "Homebrew not found. Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true
+    
+    if [[ -x "/opt/homebrew/bin/brew" ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    elif [[ -x "/usr/local/bin/brew" ]]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+    elif [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
     fi
-done
-log_success "All dependencies installed."
+
+    if command -v brew &>/dev/null; then
+        for pkg in "${PACKAGES[@]}"; do
+            brew install "$pkg" || true
+        done
+    fi
+fi
 
 # 5. Backup & Symlinking Functions
 # $1 - source (absolute path in repo)
@@ -195,9 +217,14 @@ if [[ -d "$DOTFILES_DIR/ai" ]]; then
     bash "$HOME/.ai/sync.sh"
 fi
 
-# Link VS Code and Cursor User settings & keybindings
-VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
-CURSOR_USER_DIR="$HOME/Library/Application Support/Cursor/User"
+# Link VS Code and Cursor User settings & keybindings (Platform dependent)
+if [ "$IS_MACOS" = true ]; then
+    VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
+    CURSOR_USER_DIR="$HOME/Library/Application Support/Cursor/User"
+else
+    VSCODE_USER_DIR="$HOME/.config/Code/User"
+    CURSOR_USER_DIR="$HOME/.config/Cursor/User"
+fi
 
 if [[ -d "$DOTFILES_DIR/config/vscode" ]]; then
     log_info "Linking VS Code and Cursor configurations..."
@@ -208,4 +235,16 @@ if [[ -d "$DOTFILES_DIR/config/vscode" ]]; then
     link_config "$DOTFILES_DIR/config/vscode/keybindings.json" "$CURSOR_USER_DIR/keybindings.json"
 fi
 
-log_success "Dotfiles setup completed successfully!"
+# Link Linux desktop application launchers
+if [ "$IS_LINUX" = true ] && [[ -d "$DOTFILES_DIR/desktop_files" ]]; then
+    log_info "Linking Linux desktop launchers..."
+    DESKTOP_DIR="$HOME/.local/share/applications"
+    mkdir -p "$DESKTOP_DIR"
+    for item in "$DOTFILES_DIR/desktop_files"/*; do
+        [[ -e "$item" ]] || continue
+        name="$(basename "$item")"
+        link_config "$item" "$DESKTOP_DIR/$name"
+    done
+fi
+
+log_success "Dotfiles setup completed successfully on $OS!"

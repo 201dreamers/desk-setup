@@ -7,3 +7,5 @@ foreground = ffffff
 font-family="Fira Code"
 # font-family="JetBrainsMono Nerd Font Mono"
 font-size=14
+
+mouse-scroll-multiplier = 1.0
