@@ -175,39 +175,34 @@ local function buildBadges(windows, maxLabelWidth)
     return badges
 end
 
--- The anchor badge is always kept; neighbors are added alternating
--- below/above (closest first) until the next row would overflow the height
--- budget, so the stack "scrolls" by re-centering on the anchor instead of
--- ever clipping the badge that matters. Every row is the same height, so
--- the budget is just a row count.
-local function visibleBadgeRange(count, anchorPos, maxHeight)
-    local left, right = anchorPos, anchorPos
+-- How many badge rows fit within maxHeight - a fixed slot count.
+local function visibleRowCount(maxHeight)
     local rowSize = style.STRIP_HEIGHT + style.STRIP_GAP
-    local total = style.STRIP_HEIGHT
-    while true do
-        local addedRight = false
-        if right < count then
-            local candidate = total + rowSize
-            if candidate <= maxHeight then
-                total = candidate
-                right = right + 1
-                addedRight = true
-            end
-        end
-        local addedLeft = false
-        if left > 1 then
-            local candidate = total + rowSize
-            if candidate <= maxHeight then
-                total = candidate
-                left = left - 1
-                addedLeft = true
-            end
-        end
-        if not addedRight and not addedLeft then
-            break
-        end
+    return math.max(1, math.floor((maxHeight + style.STRIP_GAP) / rowSize))
+end
+
+-- A fixed-size window of `rows` list indices centered on anchorPos (anchor
+-- sits at the middle slot), clamped to stay inside [1, count]. The anchor's
+-- slot within the window only shifts when clamping kicks in near either
+-- edge of the list - everywhere else it's the same slot every time.
+local function clampedRange(count, anchorPos, rows)
+    rows = math.min(rows, count)
+    local anchorSlot = math.min(math.ceil(rows / 2), rows)
+
+    local first = anchorPos - (anchorSlot - 1)
+    local last = first + rows - 1
+
+    if first < 1 then
+        last = last + (1 - first)
+        first = 1
     end
-    return left, right
+    if last > count then
+        first = first - (last - count)
+        last = count
+    end
+    first = math.max(first, 1)
+
+    return first, last
 end
 
 -- Vertical, left-aligned stack of pill badges, one per window in `windows`.
@@ -216,6 +211,10 @@ end
 -- false (the minimized list, bottom-left). selectedIndex highlights one
 -- badge with a blue border; pass nil to render the whole column with
 -- nothing highlighted (the list that isn't currently active for j/k).
+--
+-- The selected badge stays in the same fixed slot for most of the list -
+-- only near the very top or bottom, where the fixed-size window would run
+-- past the list's edge, does its slot shift a little to avoid empty rows.
 local function drawBadgeColumn(screenFrame, windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, fill, textColor)
     local maxLabelWidth = screenFrame.w * style.STRIP_MAX_LABEL_WIDTH_RATIO
     local badges = buildBadges(windows, maxLabelWidth)
@@ -231,14 +230,15 @@ local function drawBadgeColumn(screenFrame, windows, selectedIndex, x, anchorY, 
         end
     end
 
-    local first, last = visibleBadgeRange(#badges, selectedPos or 1, maxHeight)
+    local rows = visibleRowCount(maxHeight)
+    local first, last = clampedRange(#badges, selectedPos or 1, rows)
 
     local y
     if anchoredToTop then
         y = anchorY
     else
-        local rows = last - first + 1
-        local totalHeight = rows * style.STRIP_HEIGHT + (rows - 1) * style.STRIP_GAP
+        local visibleRows = last - first + 1
+        local totalHeight = visibleRows * style.STRIP_HEIGHT + (visibleRows - 1) * style.STRIP_GAP
         y = anchorY - totalHeight
     end
 
