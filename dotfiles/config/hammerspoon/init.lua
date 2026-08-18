@@ -86,7 +86,7 @@ local function drawOverlay()
     for i, w in ipairs(windows) do
         local selected = (i == selectedIndex)
         local color = selected and HIGHLIGHT or DIM
-        local lineWidth = selected and 4 or 1.5
+        local lineWidth = selected and 8 or 1.5
         local label = string.format(
             "%s — %s",
             (w:application() and w:application():name()) or "?",
@@ -143,8 +143,7 @@ local function drawOverlay()
             type = "rectangle",
             frame = labelFrame,
             fillColor = { red = 0.05, green = 0.05, blue = 0.05, alpha = 0.85 },
-            strokeColor = HIGHLIGHT,
-            strokeWidth = 2,
+            strokeColor = { alpha = 0 },
             roundedRectRadii = { xRadius = 10, yRadius = 10 },
         })
         overlayCanvas:appendElements({
