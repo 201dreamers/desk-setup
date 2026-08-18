@@ -26,20 +26,20 @@ local LABEL_MAX_WIDTH_RATIO = 0.6
 local ELLIPSIS = " … "
 local ICON_SIZE = 18
 local ICON_GAP = 6
-local HELP_WIDTH = 300
+local HELP_WIDTH = 250
 local HELP_MARGIN = 20
 local HELP_PADDING = 14
 local HELP_ROW_GAP = 4
 local HELP_ROW_HEIGHT = 20
-local HELP_KEY_COLUMN_WIDTH = 135
+local HELP_KEY_COLUMN_WIDTH = 75
 local HELP_COLUMN_GAP = 8
 local HELP_FONT = "Menlo"
 local HELP_TEXT_SIZE = 13
 local HELP_ROWS = {
-    { "tab / j", "next" },
-    { "shift-tab / k", "prev" },
+    { "j", "next" },
+    { "k", "prev" },
     { "m", "toggle minimized" },
-    { "return / space", "select" },
+    { "space", "select" },
     { "esc", "cancel" },
 }
 

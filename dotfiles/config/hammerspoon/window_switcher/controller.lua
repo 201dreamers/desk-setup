@@ -84,8 +84,6 @@ function M.hide()
     overlay.clear()
 end
 
-modal:bind({}, "tab", function() moveSelection(1) end)
-modal:bind({ "shift" }, "tab", function() moveSelection(-1) end)
 modal:bind({}, "right", function() moveSelection(1) end)
 modal:bind({}, "left", function() moveSelection(-1) end)
 modal:bind({}, "j", function() moveSelection(1) end)
