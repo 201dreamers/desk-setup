@@ -1,6 +1,6 @@
 .DS_Store
 .tpm/
-plugins/
+dotfiles/config/tmux/plugins/
 *.log
 
 # Private/local-only AI rules & skills - same idea as ~/.zshrc.ignore.
