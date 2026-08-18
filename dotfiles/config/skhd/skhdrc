@@ -110,7 +110,7 @@
 # == Windows management ==
 # ========================
 # Zoom window
-ctrl + cmd - f : yabai -m window --toggle zoom-fullscreen
+ctrl + cmd - z : yabai -m window --toggle zoom-fullscreen
 
 # Make window floating
 ctrl + cmd - space : yabai -m window --toggle float --grid 4:4:1:1:2:2
@@ -123,8 +123,8 @@ ctrl + cmd - s: yabai -m space --layout stack
 ctrl + cmd - b: yabai -m space --layout bsp
 
 # Navigation
-ctrl + cmd - j : /bin/sh -c 'yabai -m window --focus stack.next || yabai -m window --focus stack.first'
-ctrl + cmd - k : /bin/sh -c 'yabai -m window --focus stack.prev || yabai -m window --focus stack.last'
+# ctrl + cmd - j : /bin/sh -c 'yabai -m window --focus stack.next || yabai -m window --focus stack.first'
+# ctrl + cmd - k : /bin/sh -c 'yabai -m window --focus stack.prev || yabai -m window --focus stack.last'
 
 # Jump to your absolute last workspace
 ctrl + cmd - l : yabai -m space --focus last
