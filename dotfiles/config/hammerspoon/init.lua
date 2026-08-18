@@ -4,7 +4,7 @@
 -- (see skhdrc). Once the overlay is open (release the modifier key):
 --   tab / right / j       -> next window
 --   shift-tab / left / k  -> previous window
---   m                     -> toggle whether minimized windows are included
+--   m                     -> switch selector between regular/minimized lists
 --   return                -> focus selected window (unminimizing if needed)
 --   escape                -> cancel
 --

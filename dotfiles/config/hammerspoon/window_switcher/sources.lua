@@ -54,8 +54,12 @@ function M.list(includeMinimized)
     end
 
     if includeMinimized then
+        -- Not filtering by isStandard() here: while minimized, a window's AX
+        -- subrole is unreliably reported (e.g. a plain TextEdit document can
+        -- come back as AXDialog instead of AXStandardWindow), so the same
+        -- check used for visible windows above would drop legitimate ones.
         for _, w in ipairs(hs.window.minimizedWindows()) do
-            if w:isStandard() and M.isOnSpace(w, spaceId) then
+            if M.isOnSpace(w, spaceId) then
                 table.insert(windows, w)
             end
         end

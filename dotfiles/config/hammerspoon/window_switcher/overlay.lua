@@ -1,53 +1,22 @@
 -- Draws the switcher overlay: a rectangle traced over each real window's
--- on-screen frame (minimized windows have none, so they get a labeled chip
--- along the bottom instead), plus one centered label for the current
--- selection.
+-- on-screen frame (minimized windows have none, so they're skipped here),
+-- two independent vertically-scrollable badge columns - regular windows
+-- top-left, minimized windows bottom-left in a darker chip-style color,
+-- both always visible - with the current selection marked by a blue
+-- border in whichever column is currently active, and a help box in the
+-- bottom-right corner.
 --
--- Only owns rendering - it knows nothing about how the window list or the
--- selection index came to be, so styling can change without touching
+-- Only owns rendering - it knows nothing about how the window lists or the
+-- selection indices came to be, so styling can change without touching
 -- sources.lua or controller.lua.
 
 local sources = require("window_switcher.sources")
+local style = require("window_switcher.style")
 
 local M = {}
 
-local HIGHLIGHT = { red = 0.20, green = 0.55, blue = 1.0, alpha = 0.9 }
-local DIM = { red = 1, green = 1, blue = 1, alpha = 0.35 }
-local CURRENT = { white = 0.55, alpha = 0.75 }
-local SELECTED_LINE_WIDTH = 6
-local DIM_LINE_WIDTH = 1.5
-local CURRENT_LINE_WIDTH = 3
-local LABEL_FILL = { white = 0.75, alpha = 0.9 }
-local LABEL_TEXT_COLOR = { white = 0.16 }
-local CHIP_WIDTH, CHIP_HEIGHT = 200, 36
-local CHIP_MARGIN = 10
-local LABEL_PADDING_X, LABEL_PADDING_Y = 20, 8
-local LABEL_MAX_WIDTH_RATIO = 0.6
-local ELLIPSIS = " … "
-local ICON_SIZE = 18
-local ICON_GAP = 6
-local HELP_WIDTH = 250
-local HELP_MARGIN = 20
-local HELP_PADDING = 14
-local HELP_ROW_GAP = 4
-local HELP_ROW_HEIGHT = 20
-local HELP_KEY_COLUMN_WIDTH = 75
-local HELP_COLUMN_GAP = 8
-local HELP_FONT = "Menlo"
-local HELP_TEXT_SIZE = 13
-local HELP_ROWS = {
-    { "j", "next" },
-    { "k", "prev" },
-    { "m", "toggle minimized" },
-    { "space", "select" },
-    { "esc", "cancel" },
-}
-
-local BACKGROUND_FILL = { red = 0.05, green = 0.05, blue = 0.05, alpha = 0.85 }
-local BACKGROUND_RADII = { xRadius = 10, yRadius = 10 }
-local TEXT_COLOR = { white = 0.82 }
-
 local canvas = nil
+local notificationCanvas = nil
 
 function M.clear()
     if canvas then
@@ -56,34 +25,82 @@ function M.clear()
     end
 end
 
-local function drawMinimizedChip(chipX, chipY, window, color, lineWidth)
-    canvas:appendElements({
+-- Toast notification (e.g. "Minimized windows: shown"), drawn as its own
+-- small canvas styled exactly like a minimized-window chip - hs.alert's
+-- built-in box has no height control, so it never quite matched.
+function M.showNotification(text)
+    if notificationCanvas then
+        notificationCanvas:delete()
+        notificationCanvas = nil
+    end
+
+    local screenFrame = hs.screen.mainScreen():frame()
+    local measureCanvas = hs.canvas.new(screenFrame)
+    local styledText = hs.styledtext.new(text, {
+        font = style.BADGE_FONT,
+        color = style.TEXT_COLOR,
+        paragraphStyle = { alignment = "center" },
+    })
+    local textSize = measureCanvas:minimumTextSize(styledText)
+    measureCanvas:delete()
+
+    local width = textSize.w + style.STRIP_PADDING_X * 2
+    local frame = {
+        x = screenFrame.x + (screenFrame.w - width) / 2,
+        y = screenFrame.y + style.NOTIFICATION_TOP_MARGIN,
+        w = width,
+        h = style.CHIP_HEIGHT,
+    }
+
+    notificationCanvas = hs.canvas.new(frame)
+    notificationCanvas:level(hs.canvas.windowLevels.overlay)
+    notificationCanvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
+    notificationCanvas:appendElements({
         type = "rectangle",
-        frame = { x = chipX, y = chipY, w = CHIP_WIDTH, h = CHIP_HEIGHT },
-        fillColor = { red = 0.1, green = 0.1, blue = 0.1, alpha = 0.8 },
-        strokeColor = color,
-        strokeWidth = lineWidth,
-        roundedRectRadii = { xRadius = 6, yRadius = 6 },
+        frame = { x = 0, y = 0, w = width, h = style.CHIP_HEIGHT },
+        fillColor = style.CHIP_FILL,
+        strokeColor = { alpha = 0 },
+        roundedRectRadii = { xRadius = style.CHIP_HEIGHT / 2, yRadius = style.CHIP_HEIGHT / 2 },
     })
-    canvas:appendElements({
+    notificationCanvas:appendElements({
         type = "text",
-        frame = { x = chipX + 8, y = chipY + 8, w = CHIP_WIDTH - 16, h = CHIP_HEIGHT - 16 },
-        text = sources.label(window) .. "  (minimized)",
-        textColor = TEXT_COLOR,
-        textSize = 12,
+        frame = { x = 0, y = (style.CHIP_HEIGHT - textSize.h) / 2, w = width, h = textSize.h },
+        text = styledText,
     })
-    return chipX + CHIP_WIDTH + CHIP_MARGIN
+    notificationCanvas:show()
+
+    local shown = notificationCanvas
+    hs.timer.doAfter(style.NOTIFICATION_DURATION, function()
+        if notificationCanvas == shown then
+            notificationCanvas:delete()
+            notificationCanvas = nil
+        end
+    end)
 end
 
-local function drawWindowFrame(screenFrame, window, color, lineWidth)
+local function drawWindowFrame(screenFrame, window, color, lineWidth, outlined)
     local f = window:frame()
+    local frame = { x = f.x - screenFrame.x, y = f.y - screenFrame.y, w = f.w, h = f.h }
+    local radii = { xRadius = 8, yRadius = 8 }
+
+    if outlined and style.OUTLINE_ENABLED then
+        canvas:appendElements({
+            type = "rectangle",
+            frame = frame,
+            fillColor = { alpha = 0 },
+            strokeColor = style.OUTLINE_COLOR,
+            strokeWidth = lineWidth + style.OUTLINE_EXTRA_WIDTH,
+            roundedRectRadii = radii,
+        })
+    end
+
     canvas:appendElements({
         type = "rectangle",
-        frame = { x = f.x - screenFrame.x, y = f.y - screenFrame.y, w = f.w, h = f.h },
+        frame = frame,
         fillColor = { alpha = 0 },
         strokeColor = color,
         strokeWidth = lineWidth,
-        roundedRectRadii = { xRadius = 8, yRadius = 8 },
+        roundedRectRadii = radii,
     })
 end
 
@@ -106,9 +123,9 @@ end
 
 -- Shrinks from both ends toward the middle (keeping the longer side one
 -- character longer when the length is odd) until the ellipsized text fits
--- maxWidth, so long window names degrade instead of overflowing the badge.
-local function truncateMiddle(text, style, maxWidth)
-    if canvas:minimumTextSize(hs.styledtext.new(text, style)).w <= maxWidth then
+-- maxWidth, so long window names degrade instead of overflowing a badge.
+local function truncateMiddle(text, textStyle, maxWidth)
+    if canvas:minimumTextSize(hs.styledtext.new(text, textStyle)).w <= maxWidth then
         return text
     end
 
@@ -116,8 +133,8 @@ local function truncateMiddle(text, style, maxWidth)
     local left = math.ceil(len / 2)
     local right = len - left
     while left > 0 or right > 0 do
-        local candidate = subChars(text, 1, left) .. ELLIPSIS .. subChars(text, len - right + 1, len)
-        if canvas:minimumTextSize(hs.styledtext.new(candidate, style)).w <= maxWidth then
+        local candidate = subChars(text, 1, left) .. style.ELLIPSIS .. subChars(text, len - right + 1, len)
+        if canvas:minimumTextSize(hs.styledtext.new(candidate, textStyle)).w <= maxWidth then
             return candidate
         end
         if left >= right then
@@ -126,67 +143,160 @@ local function truncateMiddle(text, style, maxWidth)
             right = right - 1
         end
     end
-    return ELLIPSIS
+    return style.ELLIPSIS
 end
 
--- Badge is sized to the label text itself (measured via minimumTextSize)
--- plus the app icon when one is available, not a fixed box, so short names
--- don't float in oversized padding and long names don't clip. Names longer
--- than LABEL_MAX_WIDTH_RATIO of the screen get middle-truncated first so the
--- badge never grows unbounded.
-local function drawSelectedLabel(screenFrame, window)
-    local style = {
-        font = { name = ".AppleSystemUIFontMedium", size = 13 },
-        color = LABEL_TEXT_COLOR,
-        paragraphStyle = { alignment = "center" },
-    }
-    local maxTextWidth = screenFrame.w * LABEL_MAX_WIDTH_RATIO - LABEL_PADDING_X * 2
-    local label = truncateMiddle(sources.label(window), style, maxTextWidth)
-    local styledText = hs.styledtext.new(label, style)
-    local icon = sources.appIcon(window)
+local STRIP_FONT = style.BADGE_FONT
+local STRIP_MEASURE_STYLE = { font = STRIP_FONT }
 
-    local textSize = canvas:minimumTextSize(styledText)
-    local iconSpace = icon and (ICON_SIZE + ICON_GAP) or 0
-    local badgeWidth = textSize.w + iconSpace + LABEL_PADDING_X * 2
-    local badgeHeight = textSize.h + LABEL_PADDING_Y * 2
-    local frame = {
-        x = (screenFrame.w - badgeWidth) / 2,
-        y = (screenFrame.h - badgeHeight) / 2,
-        w = badgeWidth,
-        h = badgeHeight,
-    }
-
-    canvas:appendElements({
-        type = "rectangle",
-        frame = frame,
-        fillColor = LABEL_FILL,
-        strokeColor = { alpha = 0 },
-        roundedRectRadii = { xRadius = badgeHeight / 2, yRadius = badgeHeight / 2 },
-    })
-
-    if icon then
-        canvas:appendElements({
-            type = "image",
-            frame = {
-                x = frame.x + LABEL_PADDING_X,
-                y = frame.y + (badgeHeight - ICON_SIZE) / 2,
-                w = ICON_SIZE,
-                h = ICON_SIZE,
-            },
-            image = icon,
+-- One entry per window in a single column (a column is always all-regular
+-- or all-minimized, never mixed): measured pill size plus everything
+-- needed to draw it, computed once so layout (which badges fit) and
+-- drawing (the actual appendElements calls) don't measure text twice.
+-- maxLabelWidth scales with screen width instead of a fixed pixel cap, so
+-- badges only truncate when a title is genuinely long relative to the
+-- display.
+local function buildBadges(windows, maxLabelWidth)
+    local badges = {}
+    for i, window in ipairs(windows) do
+        local label = truncateMiddle(sources.label(window), STRIP_MEASURE_STYLE, maxLabelWidth)
+        local textSize = canvas:minimumTextSize(hs.styledtext.new(label, STRIP_MEASURE_STYLE))
+        local icon = sources.appIcon(window)
+        local iconSpace = icon and (style.STRIP_ICON_SIZE + style.STRIP_ICON_GAP) or 0
+        table.insert(badges, {
+            originalIndex = i,
+            label = label,
+            icon = icon,
+            iconSpace = iconSpace,
+            textSize = textSize,
+            width = textSize.w + iconSpace + style.STRIP_PADDING_X * 2,
         })
     end
+    return badges
+end
 
-    canvas:appendElements({
-        type = "text",
-        frame = {
-            x = frame.x + LABEL_PADDING_X + iconSpace,
-            y = frame.y + (badgeHeight - textSize.h) / 2,
-            w = textSize.w,
-            h = textSize.h,
-        },
-        text = styledText,
-    })
+-- The anchor badge is always kept; neighbors are added alternating
+-- below/above (closest first) until the next row would overflow the height
+-- budget, so the stack "scrolls" by re-centering on the anchor instead of
+-- ever clipping the badge that matters. Every row is the same height, so
+-- the budget is just a row count.
+local function visibleBadgeRange(count, anchorPos, maxHeight)
+    local left, right = anchorPos, anchorPos
+    local rowSize = style.STRIP_HEIGHT + style.STRIP_GAP
+    local total = style.STRIP_HEIGHT
+    while true do
+        local addedRight = false
+        if right < count then
+            local candidate = total + rowSize
+            if candidate <= maxHeight then
+                total = candidate
+                right = right + 1
+                addedRight = true
+            end
+        end
+        local addedLeft = false
+        if left > 1 then
+            local candidate = total + rowSize
+            if candidate <= maxHeight then
+                total = candidate
+                left = left - 1
+                addedLeft = true
+            end
+        end
+        if not addedRight and not addedLeft then
+            break
+        end
+    end
+    return left, right
+end
+
+-- Vertical, left-aligned stack of pill badges, one per window in `windows`.
+-- Grows downward from (x, anchorY) when anchoredToTop is true (the regular
+-- list, top-left), or upward with its bottom edge pinned to anchorY when
+-- false (the minimized list, bottom-left). selectedIndex highlights one
+-- badge with a blue border; pass nil to render the whole column with
+-- nothing highlighted (the list that isn't currently active for j/k).
+local function drawBadgeColumn(screenFrame, windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, fill, textColor)
+    local maxLabelWidth = screenFrame.w * style.STRIP_MAX_LABEL_WIDTH_RATIO
+    local badges = buildBadges(windows, maxLabelWidth)
+    if #badges == 0 then
+        return
+    end
+
+    local selectedPos = nil
+    for i, badge in ipairs(badges) do
+        if badge.originalIndex == selectedIndex then
+            selectedPos = i
+            break
+        end
+    end
+
+    local first, last = visibleBadgeRange(#badges, selectedPos or 1, maxHeight)
+
+    local y
+    if anchoredToTop then
+        y = anchorY
+    else
+        local rows = last - first + 1
+        local totalHeight = rows * style.STRIP_HEIGHT + (rows - 1) * style.STRIP_GAP
+        y = anchorY - totalHeight
+    end
+
+    for i = first, last do
+        local badge = badges[i]
+        local selected = (i == selectedPos)
+        local badgeRadii = { xRadius = style.STRIP_HEIGHT / 2, yRadius = style.STRIP_HEIGHT / 2 }
+
+        if selected and style.OUTLINE_ENABLED then
+            canvas:appendElements({
+                type = "rectangle",
+                frame = { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
+                fillColor = { alpha = 0 },
+                strokeColor = style.OUTLINE_COLOR,
+                strokeWidth = style.STRIP_SELECTED_BORDER_WIDTH + style.OUTLINE_EXTRA_WIDTH,
+                roundedRectRadii = badgeRadii,
+            })
+        end
+
+        canvas:appendElements({
+            type = "rectangle",
+            frame = { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
+            fillColor = fill,
+            strokeColor = selected and style.HIGHLIGHT or { alpha = 0 },
+            strokeWidth = selected and style.STRIP_SELECTED_BORDER_WIDTH or 0,
+            roundedRectRadii = badgeRadii,
+        })
+
+        if badge.icon then
+            canvas:appendElements({
+                type = "image",
+                frame = {
+                    x = x + style.STRIP_PADDING_X,
+                    y = y + (style.STRIP_HEIGHT - style.STRIP_ICON_SIZE) / 2,
+                    w = style.STRIP_ICON_SIZE,
+                    h = style.STRIP_ICON_SIZE,
+                },
+                image = badge.icon,
+            })
+        end
+
+        canvas:appendElements({
+            type = "text",
+            frame = {
+                x = x + style.STRIP_PADDING_X + badge.iconSpace,
+                y = y + (style.STRIP_HEIGHT - badge.textSize.h) / 2,
+                w = badge.textSize.w,
+                h = badge.textSize.h,
+            },
+            text = hs.styledtext.new(badge.label, {
+                font = STRIP_FONT,
+                color = textColor,
+                paragraphStyle = { alignment = "center" },
+            }),
+        })
+
+        y = y + style.STRIP_HEIGHT + style.STRIP_GAP
+    end
 end
 
 -- Key and description are separate text elements side by side, so a long
@@ -196,48 +306,56 @@ end
 local function drawHelpRow(x, y, descriptionWidth, key, description)
     canvas:appendElements({
         type = "text",
-        frame = { x = x, y = y, w = HELP_KEY_COLUMN_WIDTH - HELP_COLUMN_GAP, h = HELP_ROW_HEIGHT },
+        frame = { x = x, y = y, w = style.HELP_KEY_COLUMN_WIDTH - style.HELP_COLUMN_GAP, h = style.HELP_ROW_HEIGHT },
         text = hs.styledtext.new(key .. " -", {
-            font = { name = HELP_FONT, size = HELP_TEXT_SIZE },
-            color = TEXT_COLOR,
+            font = { name = style.HELP_FONT, size = style.HELP_TEXT_SIZE },
+            color = style.TEXT_COLOR,
             paragraphStyle = { alignment = "right" },
         }),
     })
     canvas:appendElements({
         type = "text",
-        frame = { x = x + HELP_KEY_COLUMN_WIDTH, y = y, w = descriptionWidth, h = HELP_ROW_HEIGHT },
+        frame = { x = x + style.HELP_KEY_COLUMN_WIDTH, y = y, w = descriptionWidth, h = style.HELP_ROW_HEIGHT },
         text = hs.styledtext.new(description, {
-            font = { name = HELP_FONT, size = HELP_TEXT_SIZE },
-            color = TEXT_COLOR,
+            font = { name = style.HELP_FONT, size = style.HELP_TEXT_SIZE },
+            color = style.TEXT_COLOR,
         }),
     })
 end
 
 local function drawHelpBox(screenFrame)
-    local boxX = screenFrame.w - HELP_MARGIN - HELP_WIDTH
-    local boxY = HELP_MARGIN
-    local contentWidth = HELP_WIDTH - (HELP_PADDING * 2)
-    local descriptionWidth = contentWidth - HELP_KEY_COLUMN_WIDTH
-    local boxHeight = (HELP_PADDING * 2)
-        + (#HELP_ROWS * HELP_ROW_HEIGHT)
-        + ((#HELP_ROWS - 1) * HELP_ROW_GAP)
+    local contentWidth = style.HELP_WIDTH - (style.HELP_PADDING * 2)
+    local descriptionWidth = contentWidth - style.HELP_KEY_COLUMN_WIDTH
+    local boxHeight = (style.HELP_PADDING * 2)
+        + (#style.HELP_ROWS * style.HELP_ROW_HEIGHT)
+        + ((#style.HELP_ROWS - 1) * style.HELP_ROW_GAP)
+    local boxX = screenFrame.w - style.HELP_MARGIN - style.HELP_WIDTH
+    local boxY = screenFrame.h - style.HELP_MARGIN - boxHeight
 
     canvas:appendElements({
         type = "rectangle",
-        frame = { x = boxX, y = boxY, w = HELP_WIDTH, h = boxHeight },
-        fillColor = BACKGROUND_FILL,
+        frame = { x = boxX, y = boxY, w = style.HELP_WIDTH, h = boxHeight },
+        fillColor = style.BACKGROUND_FILL,
         strokeColor = { alpha = 0 },
-        roundedRectRadii = BACKGROUND_RADII,
+        roundedRectRadii = style.BACKGROUND_RADII,
     })
 
-    local rowY = boxY + HELP_PADDING
-    for _, row in ipairs(HELP_ROWS) do
-        drawHelpRow(boxX + HELP_PADDING, rowY, descriptionWidth, row[1], row[2])
-        rowY = rowY + HELP_ROW_HEIGHT + HELP_ROW_GAP
+    local rowY = boxY + style.HELP_PADDING
+    for _, row in ipairs(style.HELP_ROWS) do
+        drawHelpRow(boxX + style.HELP_PADDING, rowY, descriptionWidth, row[1], row[2])
+        rowY = rowY + style.HELP_ROW_HEIGHT + style.HELP_ROW_GAP
     end
 end
 
-function M.draw(windows, selectedIndex, currentIndex)
+-- state = {
+--   regularWindows, minimizedWindows: the two independent lists,
+--   activeList: "regular" | "minimized" - which one j/k currently drives,
+--   regularSelectedIndex, minimizedSelectedIndex: each list's own cursor,
+--   currentWindowIndex: index into regularWindows of the window that was
+--     focused before the switcher opened (minimized windows can't be
+--     focused, so this never refers to the minimized list).
+-- }
+function M.draw(state)
     M.clear()
     local screenFrame = hs.screen.mainScreen():frame()
     canvas = hs.canvas.new(screenFrame)
@@ -246,30 +364,37 @@ function M.draw(windows, selectedIndex, currentIndex)
 
     drawHelpBox(screenFrame)
 
-    local chipX, chipY = 20, screenFrame.h - 60
-
-    for i, window in ipairs(windows) do
-        if window:isMinimized() then
-            local selected = (i == selectedIndex)
-            local color = selected and HIGHLIGHT or DIM
-            local lineWidth = selected and SELECTED_LINE_WIDTH or DIM_LINE_WIDTH
-            chipX = drawMinimizedChip(chipX, chipY, window, color, lineWidth)
-        else
-            -- Selected window gets the blue highlight border; the window
-            -- that was focused before the switcher opened gets its own
-            -- subdued marker instead.
-            local selected = (i == selectedIndex)
-            local isCurrent = (i == currentIndex)
-            local color = selected and HIGHLIGHT or (isCurrent and CURRENT or DIM)
-            local lineWidth = selected and SELECTED_LINE_WIDTH or (isCurrent and CURRENT_LINE_WIDTH or DIM_LINE_WIDTH)
-            drawWindowFrame(screenFrame, window, color, lineWidth)
-        end
+    -- Minimized windows have no on-screen frame to trace, so only regular
+    -- ones get a border here; both kinds get a badge column below.
+    for i, window in ipairs(state.regularWindows) do
+        -- Selected window gets the blue highlight border (only while the
+        -- regular list is the active one); the window that was focused
+        -- before the switcher opened gets its own subdued marker instead.
+        local selected = state.activeList == "regular" and i == state.regularSelectedIndex
+        local isCurrent = (i == state.currentWindowIndex)
+        local color = selected and style.HIGHLIGHT or (isCurrent and style.CURRENT or style.DIM)
+        local lineWidth = selected and style.SELECTED_LINE_WIDTH
+            or (isCurrent and style.CURRENT_LINE_WIDTH or style.DIM_LINE_WIDTH)
+        drawWindowFrame(screenFrame, window, color, lineWidth, selected)
     end
 
-    local selectedWindow = windows[selectedIndex]
-    if selectedWindow then
-        drawSelectedLabel(screenFrame, selectedWindow)
-    end
+    drawBadgeColumn(
+        screenFrame, state.regularWindows,
+        state.activeList == "regular" and state.regularSelectedIndex or nil,
+        style.HELP_MARGIN, style.HELP_MARGIN, true,
+        screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO,
+        style.STRIP_FILL, style.STRIP_TEXT_COLOR
+    )
+
+    local minimizedMaxHeight = style.MINIMIZED_MAX_ROWS * style.STRIP_HEIGHT
+        + (style.MINIMIZED_MAX_ROWS - 1) * style.STRIP_GAP
+    drawBadgeColumn(
+        screenFrame, state.minimizedWindows,
+        state.activeList == "minimized" and state.minimizedSelectedIndex or nil,
+        style.HELP_MARGIN, screenFrame.h - style.HELP_MARGIN, false,
+        minimizedMaxHeight,
+        style.CHIP_FILL, style.TEXT_COLOR
+    )
 
     canvas:show()
 end
