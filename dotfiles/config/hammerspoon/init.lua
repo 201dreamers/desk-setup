@@ -86,7 +86,7 @@ local function drawOverlay()
     for i, w in ipairs(windows) do
         local selected = (i == selectedIndex)
         local color = selected and HIGHLIGHT or DIM
-        local lineWidth = selected and 8 or 1.5
+        local lineWidth = selected and 6 or 1.5
         local label = string.format(
             "%s — %s",
             (w:application() and w:application():name()) or "?",

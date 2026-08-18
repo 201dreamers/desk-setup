@@ -17,20 +17,24 @@ numbers = [
     { run = "open -a 'Numbers' \"$@\"", desc = "Open with Numbers", orphan = true },
 ]
 
+mdv = [
+    { run = "open -a 'MDV' \"$@\"", desc = "Open with MDV", orphan = true },
+]
+
 
 [open]
 rules = [
-    { url = "*.md", use = [ "edit", "cursor" ], block = true },
-    { url = "*.txt", use = [ "edit", "cursor" ], block = true },
-    { url = "*.csv", use = [ "edit", "numbers", "cursor" ], block = true },
-    { url = "*.numbers", use = [ "numbers" ], block = true },
+    { url = "*.md", use = [ "edit", "mdv", "cursor", "default" ], block = true },
+    { url = "*.txt", use = [ "edit", "cursor", "default" ], block = true },
+    { url = "*.csv", use = [ "edit", "numbers", "cursor", "default" ], block = true },
+    { url = "*.numbers", use = [ "numbers", "default" ], block = true },
 
-    { mime = "text/html", use = [ "edit", "chrome", "cursor" ], block = true },
-    { mime = "application/json", use = [ "edit", "cursor", "chrome" ], block = true },
-    { mime = "text/*", use = [ "edit", "cursor" ], block = true },
-    { mime = "video/*", use = [ "chrome", "reveal" ], block = true },
-    { mime = "image/*", use = [ "reveal", "chrome" ], block = true },
-    { mime = "application/x-empty", use = [ "edit" ], block = true },
+    { mime = "text/html", use = [ "edit", "chrome", "cursor", "default" ], block = true },
+    { mime = "application/json", use = [ "edit", "cursor", "chrome", "default" ], block = true },
+    { mime = "text/*", use = [ "edit", "cursor", "default" ], block = true },
+    { mime = "video/*", use = [ "chrome", "reveal", "default" ], block = true },
+    { mime = "image/*", use = [ "reveal", "chrome", "default" ], block = true },
+    { mime = "application/x-empty", use = [ "edit", "default" ], block = true },
 
     { url = "*", use = [ "default" ], block = true }
 ]
