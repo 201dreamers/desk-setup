@@ -64,10 +64,15 @@ M.HELP_FONT = "Menlo"
 M.HELP_TEXT_SIZE = 13
 M.HELP_ROWS = {
     { "j", "next" },
+    { "down", "next" },
     { "k", "prev" },
-    { "m", "switch list" },
+    { "up", "prev" },
+    { "return", "select" },
     { "space", "select" },
+    { "click", "select" },
+    { "m", "switch list" },
     { "esc", "cancel" },
+    { "?", "toggle help" },
 }
 
 M.BACKGROUND_FILL = { red = 0.05, green = 0.05, blue = 0.05, alpha = 0.85 }

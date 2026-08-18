@@ -17,12 +17,21 @@ local M = {}
 
 local canvas = nil
 local notificationCanvas = nil
+local clickHandler = nil
 
 function M.clear()
     if canvas then
         canvas:delete()
         canvas = nil
     end
+end
+
+-- Registers a callback fired on left click anywhere in the overlay, so
+-- controller.lua can make clicking act like pressing return/space. Stored
+-- separately from `canvas` since the canvas itself gets torn down and
+-- recreated on every redraw, but the handler should stick around.
+function M.onClick(handler)
+    clickHandler = handler
 end
 
 -- Toast notification (e.g. "Minimized windows: shown"), drawn as its own
@@ -354,6 +363,7 @@ end
 --   currentWindowIndex: index into regularWindows of the window that was
 --     focused before the switcher opened (minimized windows can't be
 --     focused, so this never refers to the minimized list).
+--   helpVisible: whether the "?"-toggled help box should be drawn.
 -- }
 function M.draw(state)
     M.clear()
@@ -361,8 +371,16 @@ function M.draw(state)
     canvas = hs.canvas.new(screenFrame)
     canvas:level(hs.canvas.windowLevels.overlay)
     canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
+    canvas:canvasMouseEvents(false, true, false, false)
+    canvas:mouseCallback(function(_, message)
+        if message == "mouseUp" and clickHandler then
+            clickHandler()
+        end
+    end)
 
-    drawHelpBox(screenFrame)
+    if state.helpVisible then
+        drawHelpBox(screenFrame)
+    end
 
     -- Minimized windows have no on-screen frame to trace, so only regular
     -- ones get a border here; both kinds get a badge column below.

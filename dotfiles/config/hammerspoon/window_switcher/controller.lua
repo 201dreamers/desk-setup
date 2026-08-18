@@ -26,6 +26,8 @@ local minimizedSelectedIndex = 1
 local currentWindowIndex = nil
 -- "regular" | "minimized" - which list j/k currently moves the selection in.
 local activeList = "regular"
+-- Help box is hidden by default; "?" toggles it, reset to hidden on show().
+local helpVisible = false
 
 -- Reorders list so the currently-focused window sits at the middle index,
 -- splitting the rest evenly around it. With an even count there are two
@@ -107,6 +109,7 @@ local function redraw()
         regularSelectedIndex = regularSelectedIndex,
         minimizedSelectedIndex = minimizedSelectedIndex,
         currentWindowIndex = currentWindowIndex,
+        helpVisible = helpVisible,
     })
 end
 
@@ -138,6 +141,9 @@ local function focusSelected()
     M.hide()
 end
 
+-- Clicking anywhere in the overlay acts like pressing return/space.
+overlay.onClick(focusSelected)
+
 -- Swaps which list j/k drives. Refuses to switch into an empty list (its
 -- column renders nothing, so a highlight with no visible badge would look
 -- like a glitch) and says so instead.
@@ -161,6 +167,7 @@ function M.show()
     end
     activeList = #regularWindows > 0 and "regular" or "minimized"
     regularSelectedIndex = initialSelectedIndex()
+    helpVisible = false
     redraw()
     modal:enter()
 end
@@ -170,13 +177,18 @@ function M.hide()
     overlay.clear()
 end
 
-modal:bind({}, "right", function() moveSelection(1) end)
-modal:bind({}, "left", function() moveSelection(-1) end)
+modal:bind({}, "down", function() moveSelection(1) end)
+modal:bind({}, "up", function() moveSelection(-1) end)
 modal:bind({}, "j", function() moveSelection(1) end)
 modal:bind({}, "k", function() moveSelection(-1) end)
-modal:bind({}, "m", M.toggleActiveList)
 modal:bind({}, "return", focusSelected)
 modal:bind({}, "space", focusSelected)
 modal:bind({}, "escape", M.hide)
+modal:bind({}, "m", M.toggleActiveList)
+-- "?" has no direct hs.hotkey key name - it's shift + "/".
+modal:bind({ "shift" }, "/", function()
+    helpVisible = not helpVisible
+    redraw()
+end)
 
 return M
