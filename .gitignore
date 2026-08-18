@@ -2,3 +2,9 @@
 .tpm/
 plugins/
 *.log
+
+# Private/local-only AI rules & skills - same idea as ~/.zshrc.ignore.
+# Still picked up locally (sync.sh globs rules/*.md and symlinks skills/
+# wholesale), just never committed.
+dotfiles/ai/rules/*.ignore.md
+dotfiles/ai/skills/*.ignore/
