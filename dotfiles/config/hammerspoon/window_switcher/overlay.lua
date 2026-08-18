@@ -18,10 +18,10 @@ local SELECTED_LINE_WIDTH = 6
 local DIM_LINE_WIDTH = 1.5
 local CURRENT_LINE_WIDTH = 3
 local LABEL_FILL = { white = 0.75, alpha = 1 }
-local LABEL_TEXT_COLOR = { white = 0.1 }
+local LABEL_TEXT_COLOR = { white = 0.16 }
 local CHIP_WIDTH, CHIP_HEIGHT = 200, 36
 local CHIP_MARGIN = 10
-local LABEL_PADDING_X, LABEL_PADDING_Y = 24, 10
+local LABEL_PADDING_X, LABEL_PADDING_Y = 20, 8
 local HELP_WIDTH = 300
 local HELP_MARGIN = 20
 local HELP_PADDING = 14
@@ -88,7 +88,7 @@ end
 -- names don't clip.
 local function drawSelectedLabel(screenFrame, window)
     local styledText = hs.styledtext.new(sources.label(window), {
-        font = { size = 15 },
+        font = { name = ".AppleSystemUIFontMedium", size = 13 },
         color = LABEL_TEXT_COLOR,
         paragraphStyle = { alignment = "center" },
     })

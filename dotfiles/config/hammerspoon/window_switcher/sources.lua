@@ -12,7 +12,7 @@ function M.appName(window)
 end
 
 function M.label(window)
-    return string.format("%s — %s", M.appName(window), window:title() or "")
+    return string.format("%s - %s", M.appName(window), window:title() or "")
 end
 
 function M.isOnSpace(window, spaceId)
