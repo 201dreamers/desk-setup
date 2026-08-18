@@ -24,8 +24,24 @@ desk-setup/
         ├── yazi/          # yazi file manager settings
         ├── skhd/          # skhd hotkey daemon config
         ├── yabai/         # yabai tiling window manager config
+        ├── hammerspoon/   # Hammerspoon config: visual window switcher (linked to ~/.hammerspoon)
         └── starship.toml  # starship prompt settings
 ```
+
+## Visual window switcher (this branch)
+
+`alt - tab` opens a keyboard-driven, visual window switcher (skhd + Hammerspoon):
+
+- Scoped to windows on the **current Space only**.
+- Overlay draws a highlighted rectangle over the real on-screen frame of the
+  selected window (minimized windows get a labeled chip along the bottom
+  instead, since they have no visible frame).
+- Once open, release `alt` and use `tab`/`shift-tab`/arrows/`j`/`k` to move,
+  `m` to toggle whether minimized windows are included, `return` to focus the
+  selection (unminimizing it if needed), `escape` to cancel.
+- Implementation lives in `dotfiles/config/hammerspoon/init.lua`. Requires the
+  `hammerspoon` cask (installed by `install.sh`) and Hammerspoon's
+  Accessibility + Screen Recording permissions to be granted once on first run.
 
 ## Setup Instructions
 
