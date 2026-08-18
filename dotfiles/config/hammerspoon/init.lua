@@ -113,16 +113,40 @@ local function drawOverlay()
                 strokeWidth = lineWidth,
                 roundedRectRadii = { xRadius = 8, yRadius = 8 },
             })
-            if selected then
-                overlayCanvas:appendElements({
-                    type = "text",
-                    frame = { x = rel.x + 8, y = rel.y + 8, w = rel.w - 16, h = 24 },
-                    text = label,
-                    textColor = HIGHLIGHT,
-                    textSize = 14,
-                })
-            end
         end
+    end
+
+    local selectedWindow = windows[selectedIndex]
+    if selectedWindow then
+        local label = string.format(
+            "%s — %s",
+            (selectedWindow:application() and selectedWindow:application():name()) or "?",
+            selectedWindow:title() or ""
+        )
+        local labelW, labelH = 480, 44
+        local labelFrame = {
+            x = (screenFrame.w - labelW) / 2,
+            y = (screenFrame.h - labelH) / 2,
+            w = labelW,
+            h = labelH,
+        }
+        overlayCanvas:appendElements({
+            type = "rectangle",
+            frame = labelFrame,
+            fillColor = { red = 0.05, green = 0.05, blue = 0.05, alpha = 0.85 },
+            strokeColor = HIGHLIGHT,
+            strokeWidth = 2,
+            roundedRectRadii = { xRadius = 10, yRadius = 10 },
+        })
+        overlayCanvas:appendElements({
+            type = "text",
+            frame = { x = labelFrame.x, y = labelFrame.y + 10, w = labelW, h = labelH - 20 },
+            text = hs.styledtext.new(label, {
+                font = { size = 18 },
+                color = { white = 1 },
+                paragraphStyle = { alignment = "center" },
+            }),
+        })
     end
 
     overlayCanvas:show()
