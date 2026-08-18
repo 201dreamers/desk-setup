@@ -8,6 +8,15 @@
 --   return            -> focus selected window (unminimizing it first if needed)
 --   escape            -> cancel
 
+-- Required so `hs -c '...'` (what skhd calls above) has a message port to
+-- connect to. Also install the CLI once, from the Hammerspoon Console:
+--   hs.ipc.cliInstall()
+require("hs.ipc")
+
+-- Reload this config automatically on save, instead of needing a manual
+-- Hammerspoon reload every time init.lua changes.
+hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", hs.reload):start()
+
 local windowSwitcher = {}
 
 local overlayCanvas = nil
