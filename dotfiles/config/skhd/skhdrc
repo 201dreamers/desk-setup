@@ -130,6 +130,11 @@ ctrl + cmd - k : /bin/sh -c 'yabai -m window --focus stack.prev || yabai -m wind
 ctrl + cmd - l : yabai -m space --focus last
 # ctrl + cmd - l : yabai -m window --focus east
 
+# Visual keyboard window switcher (current Space only), built with Hammerspoon.
+# Opens the overlay; once open, release alt and use tab/shift-tab/arrows/j-k to
+# move, "m" to toggle minimized windows, return to select, escape to cancel.
+alt - tab : hs -c 'windowSwitcher.show()'
+
 
 # =====================
 # == System controls ==

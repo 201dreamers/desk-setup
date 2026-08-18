@@ -93,8 +93,10 @@ PACKAGES=(
 )
 
 # Add macOS-specific window management packages
+CASK_PACKAGES=()
 if [ "$IS_MACOS" = true ]; then
     PACKAGES+=(yabai skhd)
+    CASK_PACKAGES+=(hammerspoon)
 fi
 
 if command -v brew &>/dev/null; then
@@ -105,6 +107,14 @@ if command -v brew &>/dev/null; then
         else
             log_info "Installing $pkg..."
             brew install "$pkg" || true
+        fi
+    done
+    for pkg in "${CASK_PACKAGES[@]}"; do
+        if brew list --cask "$pkg" &>/dev/null; then
+            log_info "$pkg is already installed."
+        else
+            log_info "Installing $pkg (cask)..."
+            brew install --cask "$pkg" || true
         fi
     done
     log_success "Homebrew dependencies ready."
@@ -130,6 +140,9 @@ else
     if command -v brew &>/dev/null; then
         for pkg in "${PACKAGES[@]}"; do
             brew install "$pkg" || true
+        done
+        for pkg in "${CASK_PACKAGES[@]}"; do
+            brew install --cask "$pkg" || true
         done
     fi
 fi
@@ -206,8 +219,15 @@ if [[ -d "$REPO_CONFIG_DIR" ]]; then
     for item in "$REPO_CONFIG_DIR"/*; do
         [[ -e "$item" ]] || continue
         name="$(basename "$item")"
+        # Hammerspoon reads from ~/.hammerspoon, not ~/.config, so it's linked separately below.
+        [[ "$name" == "hammerspoon" ]] && continue
         link_config "$item" "$HOME/.config/$name"
     done
+fi
+
+# Link Hammerspoon config (used by the visual window switcher, see skhdrc)
+if [ "$IS_MACOS" = true ] && [[ -d "$REPO_CONFIG_DIR/hammerspoon" ]]; then
+    link_config "$REPO_CONFIG_DIR/hammerspoon" "$HOME/.hammerspoon"
 fi
 
 # Link ~/.ai configuration directory
