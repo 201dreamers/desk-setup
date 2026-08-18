@@ -24,6 +24,8 @@ local CHIP_MARGIN = 10
 local LABEL_PADDING_X, LABEL_PADDING_Y = 20, 8
 local LABEL_MAX_WIDTH_RATIO = 0.6
 local ELLIPSIS = " … "
+local ICON_SIZE = 18
+local ICON_GAP = 6
 local HELP_WIDTH = 300
 local HELP_MARGIN = 20
 local HELP_PADDING = 14
@@ -127,10 +129,11 @@ local function truncateMiddle(text, style, maxWidth)
     return ELLIPSIS
 end
 
--- Badge is sized to the label text itself (measured via minimumTextSize),
--- not a fixed box, so short names don't float in oversized padding and long
--- names don't clip. Names longer than LABEL_MAX_WIDTH_RATIO of the screen
--- get middle-truncated first so the badge never grows unbounded.
+-- Badge is sized to the label text itself (measured via minimumTextSize)
+-- plus the app icon when one is available, not a fixed box, so short names
+-- don't float in oversized padding and long names don't clip. Names longer
+-- than LABEL_MAX_WIDTH_RATIO of the screen get middle-truncated first so the
+-- badge never grows unbounded.
 local function drawSelectedLabel(screenFrame, window)
     local style = {
         font = { name = ".AppleSystemUIFontMedium", size = 13 },
@@ -140,9 +143,11 @@ local function drawSelectedLabel(screenFrame, window)
     local maxTextWidth = screenFrame.w * LABEL_MAX_WIDTH_RATIO - LABEL_PADDING_X * 2
     local label = truncateMiddle(sources.label(window), style, maxTextWidth)
     local styledText = hs.styledtext.new(label, style)
+    local icon = sources.appIcon(window)
 
     local textSize = canvas:minimumTextSize(styledText)
-    local badgeWidth = textSize.w + LABEL_PADDING_X * 2
+    local iconSpace = icon and (ICON_SIZE + ICON_GAP) or 0
+    local badgeWidth = textSize.w + iconSpace + LABEL_PADDING_X * 2
     local badgeHeight = textSize.h + LABEL_PADDING_Y * 2
     local frame = {
         x = (screenFrame.w - badgeWidth) / 2,
@@ -158,12 +163,26 @@ local function drawSelectedLabel(screenFrame, window)
         strokeColor = { alpha = 0 },
         roundedRectRadii = { xRadius = badgeHeight / 2, yRadius = badgeHeight / 2 },
     })
+
+    if icon then
+        canvas:appendElements({
+            type = "image",
+            frame = {
+                x = frame.x + LABEL_PADDING_X,
+                y = frame.y + (badgeHeight - ICON_SIZE) / 2,
+                w = ICON_SIZE,
+                h = ICON_SIZE,
+            },
+            image = icon,
+        })
+    end
+
     canvas:appendElements({
         type = "text",
         frame = {
-            x = frame.x,
+            x = frame.x + LABEL_PADDING_X + iconSpace,
             y = frame.y + (badgeHeight - textSize.h) / 2,
-            w = badgeWidth,
+            w = textSize.w,
             h = textSize.h,
         },
         text = styledText,

@@ -15,6 +15,12 @@ function M.label(window)
     return string.format("%s - %s", M.appName(window), window:title() or "")
 end
 
+function M.appIcon(window)
+    local app = window:application()
+    local bundleID = app and app:bundleID()
+    return bundleID and hs.image.imageFromAppBundle(bundleID) or nil
+end
+
 function M.isOnSpace(window, spaceId)
     for _, sid in ipairs(hs.spaces.windowSpaces(window) or {}) do
         if sid == spaceId then
