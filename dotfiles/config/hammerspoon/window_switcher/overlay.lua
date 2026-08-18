@@ -17,11 +17,13 @@ local CURRENT = { white = 0.55, alpha = 0.75 }
 local SELECTED_LINE_WIDTH = 6
 local DIM_LINE_WIDTH = 1.5
 local CURRENT_LINE_WIDTH = 3
-local LABEL_FILL = { white = 0.75, alpha = 1 }
+local LABEL_FILL = { white = 0.75, alpha = 0.9 }
 local LABEL_TEXT_COLOR = { white = 0.16 }
 local CHIP_WIDTH, CHIP_HEIGHT = 200, 36
 local CHIP_MARGIN = 10
 local LABEL_PADDING_X, LABEL_PADDING_Y = 20, 8
+local LABEL_MAX_WIDTH_RATIO = 0.6
+local ELLIPSIS = " … "
 local HELP_WIDTH = 300
 local HELP_MARGIN = 20
 local HELP_PADDING = 14
@@ -83,15 +85,61 @@ local function drawWindowFrame(screenFrame, window, color, lineWidth)
     })
 end
 
+-- utf8-safe substring by character index (inclusive), since window titles
+-- can contain multi-byte characters that string.sub would split mid-byte.
+local function subChars(text, from, to)
+    local len = utf8.len(text)
+    if not len then
+        return text
+    end
+    from = math.max(from, 1)
+    to = math.min(to, len)
+    if from > to then
+        return ""
+    end
+    local startByte = utf8.offset(text, from)
+    local endByte = (to < len) and (utf8.offset(text, to + 1) - 1) or #text
+    return text:sub(startByte, endByte)
+end
+
+-- Shrinks from both ends toward the middle (keeping the longer side one
+-- character longer when the length is odd) until the ellipsized text fits
+-- maxWidth, so long window names degrade instead of overflowing the badge.
+local function truncateMiddle(text, style, maxWidth)
+    if canvas:minimumTextSize(hs.styledtext.new(text, style)).w <= maxWidth then
+        return text
+    end
+
+    local len = utf8.len(text) or #text
+    local left = math.ceil(len / 2)
+    local right = len - left
+    while left > 0 or right > 0 do
+        local candidate = subChars(text, 1, left) .. ELLIPSIS .. subChars(text, len - right + 1, len)
+        if canvas:minimumTextSize(hs.styledtext.new(candidate, style)).w <= maxWidth then
+            return candidate
+        end
+        if left >= right then
+            left = left - 1
+        else
+            right = right - 1
+        end
+    end
+    return ELLIPSIS
+end
+
 -- Badge is sized to the label text itself (measured via minimumTextSize),
 -- not a fixed box, so short names don't float in oversized padding and long
--- names don't clip.
+-- names don't clip. Names longer than LABEL_MAX_WIDTH_RATIO of the screen
+-- get middle-truncated first so the badge never grows unbounded.
 local function drawSelectedLabel(screenFrame, window)
-    local styledText = hs.styledtext.new(sources.label(window), {
+    local style = {
         font = { name = ".AppleSystemUIFontMedium", size = 13 },
         color = LABEL_TEXT_COLOR,
         paragraphStyle = { alignment = "center" },
-    })
+    }
+    local maxTextWidth = screenFrame.w * LABEL_MAX_WIDTH_RATIO - LABEL_PADDING_X * 2
+    local label = truncateMiddle(sources.label(window), style, maxTextWidth)
+    local styledText = hs.styledtext.new(label, style)
 
     local textSize = canvas:minimumTextSize(styledText)
     local badgeWidth = textSize.w + LABEL_PADDING_X * 2
