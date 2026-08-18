@@ -25,8 +25,19 @@ desk-setup/
         ├── skhd/          # skhd hotkey daemon config
         ├── yabai/         # yabai tiling window manager config
         ├── hammerspoon/   # Hammerspoon config: visual window switcher (linked to ~/.hammerspoon)
+        ├── xbar/plugins/  # xbar menu bar plugins (linked to ~/Library/Application Support/xbar/plugins)
         └── starship.toml  # starship prompt settings
 ```
+
+## xbar
+
+`install.sh` installs the [xbar](https://xbarapp.com) cask and links
+`dotfiles/config/xbar/plugins/` into xbar's plugin folder. Included:
+
+- **Clock with calendar** (`CalendarLite.1m.sh`) - menu bar clock + previous/
+  current/next month mini calendars. By [Weibing Chen](https://github.com/WeibingChen17)
+  ([source](https://github.com/matryer/xbar-plugins/blob/main/Time/CalendarLite.1m.sh)),
+  vendored here unmodified.
 
 ## Visual window switcher (this branch)
 

@@ -96,7 +96,7 @@ PACKAGES=(
 CASK_PACKAGES=()
 if [ "$IS_MACOS" = true ]; then
     PACKAGES+=(yabai skhd)
-    CASK_PACKAGES+=(hammerspoon)
+    CASK_PACKAGES+=(hammerspoon xbar)
 fi
 
 if command -v brew &>/dev/null; then
@@ -219,8 +219,8 @@ if [[ -d "$REPO_CONFIG_DIR" ]]; then
     for item in "$REPO_CONFIG_DIR"/*; do
         [[ -e "$item" ]] || continue
         name="$(basename "$item")"
-        # Hammerspoon reads from ~/.hammerspoon, not ~/.config, so it's linked separately below.
-        [[ "$name" == "hammerspoon" ]] && continue
+        # Hammerspoon and xbar don't read from ~/.config, so they're linked separately below.
+        [[ "$name" == "hammerspoon" || "$name" == "xbar" ]] && continue
         link_config "$item" "$HOME/.config/$name"
     done
 fi
@@ -228,6 +228,11 @@ fi
 # Link Hammerspoon config (used by the visual window switcher, see skhdrc)
 if [ "$IS_MACOS" = true ] && [[ -d "$REPO_CONFIG_DIR/hammerspoon" ]]; then
     link_config "$REPO_CONFIG_DIR/hammerspoon" "$HOME/.hammerspoon"
+fi
+
+# Link xbar plugins (Clock with calendar, see dotfiles/config/xbar/plugins)
+if [ "$IS_MACOS" = true ] && [[ -d "$REPO_CONFIG_DIR/xbar/plugins" ]]; then
+    link_config "$REPO_CONFIG_DIR/xbar/plugins" "$HOME/Library/Application Support/xbar/plugins"
 fi
 
 # Link ~/.ai configuration directory
