@@ -184,6 +184,11 @@ local function buildBadges(windows, maxLabelWidth)
     return badges
 end
 
+-- Total height of `count` stacked items of `itemSize`, `gap` apart.
+local function stackedHeight(count, itemSize, gap)
+    return count * itemSize + math.max(count - 1, 0) * gap
+end
+
 -- How many badge rows fit within maxHeight - a fixed slot count.
 local function visibleRowCount(maxHeight)
     local rowSize = style.STRIP_HEIGHT + style.STRIP_GAP
@@ -224,31 +229,34 @@ end
 -- The selected badge stays in the same fixed slot for most of the list -
 -- only near the very top or bottom, where the fixed-size window would run
 -- past the list's edge, does its slot shift a little to avoid empty rows.
-local function drawBadgeColumn(screenFrame, windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, fill, textColor)
+-- opts = { windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, fill, textColor }
+-- (see call sites in M.draw for what each field means) - bundled into a table
+-- since several are same-typed neighbors (x/anchorY, fill/textColor) that a
+-- positional call could silently transpose.
+local function drawBadgeColumn(screenFrame, opts)
     local maxLabelWidth = screenFrame.w * style.STRIP_MAX_LABEL_WIDTH_RATIO
-    local badges = buildBadges(windows, maxLabelWidth)
+    local badges = buildBadges(opts.windows, maxLabelWidth)
     if #badges == 0 then
         return
     end
 
     local selectedPos = nil
     for i, badge in ipairs(badges) do
-        if badge.originalIndex == selectedIndex then
+        if badge.originalIndex == opts.selectedIndex then
             selectedPos = i
             break
         end
     end
 
-    local rows = visibleRowCount(maxHeight)
+    local rows = visibleRowCount(opts.maxHeight)
     local first, last = clampedRange(#badges, selectedPos or 1, rows)
 
+    local x = opts.x
     local y
-    if anchoredToTop then
-        y = anchorY
+    if opts.anchoredToTop then
+        y = opts.anchorY
     else
-        local visibleRows = last - first + 1
-        local totalHeight = visibleRows * style.STRIP_HEIGHT + (visibleRows - 1) * style.STRIP_GAP
-        y = anchorY - totalHeight
+        y = opts.anchorY - stackedHeight(last - first + 1, style.STRIP_HEIGHT, style.STRIP_GAP)
     end
 
     for i = first, last do
@@ -270,7 +278,7 @@ local function drawBadgeColumn(screenFrame, windows, selectedIndex, x, anchorY, 
         canvas:appendElements({
             type = "rectangle",
             frame = { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
-            fillColor = fill,
+            fillColor = opts.fill,
             strokeColor = selected and style.HIGHLIGHT or { alpha = 0 },
             strokeWidth = selected and style.STRIP_SELECTED_BORDER_WIDTH or 0,
             roundedRectRadii = badgeRadii,
@@ -299,7 +307,7 @@ local function drawBadgeColumn(screenFrame, windows, selectedIndex, x, anchorY, 
             },
             text = hs.styledtext.new(badge.label, {
                 font = STRIP_FONT,
-                color = textColor,
+                color = opts.textColor,
                 paragraphStyle = { alignment = "center" },
             }),
         })
@@ -336,8 +344,7 @@ local function drawHelpBox(screenFrame)
     local contentWidth = style.HELP_WIDTH - (style.HELP_PADDING * 2)
     local descriptionWidth = contentWidth - style.HELP_KEY_COLUMN_WIDTH
     local boxHeight = (style.HELP_PADDING * 2)
-        + (#style.HELP_ROWS * style.HELP_ROW_HEIGHT)
-        + ((#style.HELP_ROWS - 1) * style.HELP_ROW_GAP)
+        + stackedHeight(#style.HELP_ROWS, style.HELP_ROW_HEIGHT, style.HELP_ROW_GAP)
     local boxX = screenFrame.w - style.HELP_MARGIN - style.HELP_WIDTH
     local boxY = screenFrame.h - style.HELP_MARGIN - boxHeight
 
@@ -396,23 +403,22 @@ function M.draw(state)
         drawWindowFrame(screenFrame, window, color, lineWidth, selected)
     end
 
-    drawBadgeColumn(
-        screenFrame, state.regularWindows,
-        state.activeList == "regular" and state.regularSelectedIndex or nil,
-        style.HELP_MARGIN, style.HELP_MARGIN, true,
-        screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO,
-        style.STRIP_FILL, style.STRIP_TEXT_COLOR
-    )
+    drawBadgeColumn(screenFrame, {
+        windows = state.regularWindows,
+        selectedIndex = state.activeList == "regular" and state.regularSelectedIndex or nil,
+        x = style.HELP_MARGIN, anchorY = style.HELP_MARGIN, anchoredToTop = true,
+        maxHeight = screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO,
+        fill = style.STRIP_FILL, textColor = style.STRIP_TEXT_COLOR,
+    })
 
-    local minimizedMaxHeight = style.MINIMIZED_MAX_ROWS * style.STRIP_HEIGHT
-        + (style.MINIMIZED_MAX_ROWS - 1) * style.STRIP_GAP
-    drawBadgeColumn(
-        screenFrame, state.minimizedWindows,
-        state.activeList == "minimized" and state.minimizedSelectedIndex or nil,
-        style.HELP_MARGIN, screenFrame.h - style.HELP_MARGIN, false,
-        minimizedMaxHeight,
-        style.CHIP_FILL, style.TEXT_COLOR
-    )
+    local minimizedMaxHeight = stackedHeight(style.MINIMIZED_MAX_ROWS, style.STRIP_HEIGHT, style.STRIP_GAP)
+    drawBadgeColumn(screenFrame, {
+        windows = state.minimizedWindows,
+        selectedIndex = state.activeList == "minimized" and state.minimizedSelectedIndex or nil,
+        x = style.HELP_MARGIN, anchorY = screenFrame.h - style.HELP_MARGIN, anchoredToTop = false,
+        maxHeight = minimizedMaxHeight,
+        fill = style.CHIP_FILL, textColor = style.TEXT_COLOR,
+    })
 
     canvas:show()
 end
