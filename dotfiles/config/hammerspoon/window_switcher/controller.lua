@@ -19,10 +19,14 @@ local M = {}
 local START_ON_CURRENT_WINDOW = true
 
 local modal = hs.hotkey.modal.new()
-local regularWindows = {}
-local minimizedWindows = {}
-local regularSelectedIndex = 1
-local minimizedSelectedIndex = 1
+-- Both lists always travel together (same shape, same operations), so they
+-- live in one table keyed by name instead of four parallel variables - every
+-- function that needs "whichever list is active" does one lookup instead of
+-- repeating an if/else per list.
+local lists = {
+    regular = { windows = {}, selectedIndex = 1 },
+    minimized = { windows = {}, selectedIndex = 1 },
+}
 local currentWindowIndex = nil
 -- "regular" | "minimized" - which list j/k currently moves the selection in.
 local activeList = "regular"
@@ -80,14 +84,13 @@ end
 local function refresh()
     local regular, minimized = partitionMinimized(sources.list(true))
     local focusedIndex = sources.indexOfFocused(regular)
-    regularWindows, currentWindowIndex = moveCurrentToMiddle(regular, focusedIndex)
-    minimizedWindows = minimized
+    lists.regular.windows, currentWindowIndex = moveCurrentToMiddle(regular, focusedIndex)
+    lists.minimized.windows = minimized
 
-    if regularSelectedIndex > #regularWindows then
-        regularSelectedIndex = 1
-    end
-    if minimizedSelectedIndex > #minimizedWindows then
-        minimizedSelectedIndex = 1
+    for _, list in pairs(lists) do
+        if list.selectedIndex > #list.windows then
+            list.selectedIndex = 1
+        end
     end
 end
 
@@ -98,40 +101,33 @@ local function initialSelectedIndex()
     if START_ON_CURRENT_WINDOW then
         return currentWindowIndex
     end
-    return (currentWindowIndex % #regularWindows) + 1
+    return (currentWindowIndex % #lists.regular.windows) + 1
 end
 
 local function redraw()
     overlay.draw({
-        regularWindows = regularWindows,
-        minimizedWindows = minimizedWindows,
+        regularWindows = lists.regular.windows,
+        minimizedWindows = lists.minimized.windows,
         activeList = activeList,
-        regularSelectedIndex = regularSelectedIndex,
-        minimizedSelectedIndex = minimizedSelectedIndex,
+        regularSelectedIndex = lists.regular.selectedIndex,
+        minimizedSelectedIndex = lists.minimized.selectedIndex,
         currentWindowIndex = currentWindowIndex,
         helpVisible = helpVisible,
     })
 end
 
 local function moveSelection(delta)
-    if activeList == "regular" then
-        if #regularWindows == 0 then
-            return
-        end
-        regularSelectedIndex = ((regularSelectedIndex - 1 + delta) % #regularWindows) + 1
-    else
-        if #minimizedWindows == 0 then
-            return
-        end
-        minimizedSelectedIndex = ((minimizedSelectedIndex - 1 + delta) % #minimizedWindows) + 1
+    local list = lists[activeList]
+    if #list.windows == 0 then
+        return
     end
+    list.selectedIndex = ((list.selectedIndex - 1 + delta) % #list.windows) + 1
     redraw()
 end
 
 local function focusSelected()
-    local list = activeList == "regular" and regularWindows or minimizedWindows
-    local index = activeList == "regular" and regularSelectedIndex or minimizedSelectedIndex
-    local window = list[index]
+    local list = lists[activeList]
+    local window = list.windows[list.selectedIndex]
     if window then
         if window:isMinimized() then
             window:unminimize()
@@ -149,8 +145,7 @@ overlay.onClick(focusSelected)
 -- like a glitch) and says so instead.
 function M.toggleActiveList()
     local targetList = activeList == "regular" and "minimized" or "regular"
-    local targetCount = targetList == "regular" and #regularWindows or #minimizedWindows
-    if targetCount == 0 then
+    if #lists[targetList].windows == 0 then
         overlay.showNotification(targetList == "minimized" and "No minimized windows" or "No regular windows")
         return
     end
@@ -161,12 +156,12 @@ end
 
 function M.show()
     refresh()
-    if #regularWindows == 0 and #minimizedWindows == 0 then
+    if #lists.regular.windows == 0 and #lists.minimized.windows == 0 then
         hs.alert.show("No windows on this Space")
         return
     end
-    activeList = #regularWindows > 0 and "regular" or "minimized"
-    regularSelectedIndex = initialSelectedIndex()
+    activeList = #lists.regular.windows > 0 and "regular" or "minimized"
+    lists.regular.selectedIndex = initialSelectedIndex()
     helpVisible = false
     redraw()
     modal:enter()
