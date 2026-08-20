@@ -13,7 +13,7 @@ desk-setup/
     ├── keymaps.ahk        # Windows AutoHotkey keymaps
     ├── ai/                # Unified global AI system (~/.ai)
     │   ├── permissions.json # Master command execution whitelist
-    │   ├── sync.py        # Cross-tool config & symlink sync engine
+    │   ├── sync.sh        # Cross-tool config & symlink sync engine
     │   ├── rules/         # Global system rules (Claude, Antigravity, Cursor)
     │   └── skills/        # Shared Agent Skills (28 SKILL.md packages)
     └── config/            # Configurations mapped to ~/.config/
