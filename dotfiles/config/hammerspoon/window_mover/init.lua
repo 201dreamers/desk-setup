@@ -23,6 +23,8 @@
 
 local M = {}
 
+local axuielement = require("hs.axuielement")
+
 -- Time to let the OS register the titlebar grab before the keystroke fires.
 local GRAB_SETTLE = 0.03
 -- Time to let the Space-switch animation finish before releasing - too
@@ -31,8 +33,47 @@ local SWITCH_SETTLE = 0.3
 -- Native "Switch to Desktop N" shortcuts only go up to Control+9.
 local MAX_NATIVE_DESKTOP = 9
 
+-- Roles that eat a mouseDown instead of letting it fall through to a
+-- window drag (e.g. Cursor puts a branch-name button dead-center in its
+-- titlebar, right where a plain title/drag-space normally sits).
+local INTERACTIVE_ROLES = {
+    AXButton = true,
+    AXCheckBox = true,
+    AXMenuButton = true,
+    AXPopUpButton = true,
+    AXRadioButton = true,
+    AXLink = true,
+}
+
 local function post(eventType, point)
     hs.eventtap.event.newMouseEvent(eventType, point):post()
+end
+
+-- Probes outward from top-center for a titlebar spot that isn't an
+-- interactive control, so the mouseDown actually starts a window drag
+-- instead of clicking a button. Falls back to dead-center if nothing
+-- clear is found (or accessibility querying fails).
+local function findGrabPoint(winFrame)
+    local y = winFrame.y + 8
+    local centerX = winFrame.x + winFrame.w / 2
+    local maxRadius = math.min(300, winFrame.w / 2 - 20)
+
+    local ok, systemWide = pcall(axuielement.systemWideElement)
+    if ok and systemWide then
+        for radius = 0, maxRadius, 20 do
+            local signs = radius == 0 and { 1 } or { 1, -1 }
+            for _, sign in ipairs(signs) do
+                local x = centerX + sign * radius
+                local el = systemWide:elementAtPosition(x, y)
+                local role = el and el.AXRole
+                if not role or not INTERACTIVE_ROLES[role] then
+                    return hs.geometry.point(x, y)
+                end
+            end
+        end
+    end
+
+    return hs.geometry.point(centerX, y)
 end
 
 function M.moveToSpace(targetPos)
@@ -51,9 +92,7 @@ function M.moveToSpace(targetPos)
     end
 
     local winFrame = win:frame()
-    -- Grab near the top-center of the window (titlebar), away from the
-    -- traffic-light buttons that sit at the top-left.
-    local grabPoint = hs.geometry.point(winFrame.x + winFrame.w / 2, winFrame.y + 8)
+    local grabPoint = findGrabPoint(winFrame)
     local types = hs.eventtap.event.types
 
     post(types.leftMouseDown, grabPoint)
