@@ -114,6 +114,25 @@ if [[ -f "$PERM_FILE" && -x "$(command -v jq)" ]]; then
     log_success "Updated Claude Code settings & permissions: $CLAUDE_SETTINGS"
 fi
 
+# 4b. Point the Claude Code statusline at the caveman plugin's script, if the
+# plugin happens to be installed. The plugin is not vendored in this repo, and
+# its cache path contains a changing revision directory, so resolve it at sync
+# time rather than hardcoding. Leaves any existing statusLine alone when absent.
+if [[ -f "$CLAUDE_SETTINGS" && -x "$(command -v jq)" ]]; then
+    STATUSLINE_SCRIPT="$(find "$HOME/.claude/plugins/cache" -type f -name 'caveman-statusline.sh' -print 2>/dev/null | sort | head -n 1)"
+
+    if [[ -n "$STATUSLINE_SCRIPT" ]]; then
+        UPDATED_SETTINGS="$(jq --arg sl "$STATUSLINE_SCRIPT" '
+            .statusLine = {"type": "command", "command": ("bash \"" + $sl + "\"")}
+        ' "$CLAUDE_SETTINGS")"
+
+        echo "$UPDATED_SETTINGS" > "$CLAUDE_SETTINGS"
+        log_success "Updated Claude Code statusline: $STATUSLINE_SCRIPT"
+    else
+        log_info "caveman statusline script not found; leaving statusLine as-is."
+    fi
+fi
+
 # 5. Sync Antigravity hooks
 GEMINI_HOOKS="$HOME/.gemini/config/hooks.json"
 mkdir -p "$HOME/.gemini/config"
