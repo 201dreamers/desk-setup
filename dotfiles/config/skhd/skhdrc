@@ -115,12 +115,8 @@ ctrl + cmd - z : yabai -m window --toggle zoom-fullscreen
 # Make window floating
 ctrl + cmd - space : yabai -m window --toggle float --grid 4:4:1:1:2:2
 
-# Make window sticky
-ctrl + cmd - S : yabai -m window --toggle sticky
-
-# Layout
-ctrl + cmd - s: yabai -m space --layout stack
-ctrl + cmd - b: yabai -m space --layout bsp
+# Layout (toggle stack <-> bsp)
+ctrl + cmd - s : yabai -m space --layout $(yabai -m query --spaces --space | grep -q '"type":"stack"' && echo bsp || echo stack)
 
 # Navigation
 # ctrl + cmd - j : /bin/sh -c 'yabai -m window --focus stack.next || yabai -m window --focus stack.first'
@@ -128,7 +124,20 @@ ctrl + cmd - b: yabai -m space --layout bsp
 
 # Jump to your absolute last workspace
 ctrl + cmd - l : yabai -m space --focus last
-# ctrl + cmd - l : yabai -m window --focus east
+
+# Move focused window to Space N, by grabbing its titlebar and firing macOS's
+# native "Switch to Desktop N" shortcut while held (see window_mover.lua for
+# why - yabai's --space move silently no-ops here since the
+# scripting-addition isn't installed).
+ctrl + cmd - 1 : hs -c 'windowMover.moveToSpace(1)'
+ctrl + cmd - 2 : hs -c 'windowMover.moveToSpace(2)'
+ctrl + cmd - 3 : hs -c 'windowMover.moveToSpace(3)'
+ctrl + cmd - 4 : hs -c 'windowMover.moveToSpace(4)'
+ctrl + cmd - 5 : hs -c 'windowMover.moveToSpace(5)'
+ctrl + cmd - 6 : hs -c 'windowMover.moveToSpace(6)'
+ctrl + cmd - 7 : hs -c 'windowMover.moveToSpace(7)'
+ctrl + cmd - 8 : hs -c 'windowMover.moveToSpace(8)'
+ctrl + cmd - 9 : hs -c 'windowMover.moveToSpace(9)'
 
 # Visual keyboard window switcher (current Space only), built with Hammerspoon.
 # Opens the overlay; once open, release the modifier and use tab/shift-tab/
