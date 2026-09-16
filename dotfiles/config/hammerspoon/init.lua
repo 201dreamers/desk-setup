@@ -15,6 +15,10 @@
 --
 -- windowMover - moves the focused window to another Space. Trigger: skhd
 -- sends `ctrl+cmd-1..9` -> `hs -c 'windowMover.moveToSpace(N)'` (see window_mover/).
+--
+-- spaceSwitcher - jumps to the last Space on the current screen, fullscreen
+-- ones included. Trigger: skhd sends `ctrl+cmd-l` ->
+-- `hs -c 'spaceSwitcher.focusLast()'` (see space_switcher/).
 
 -- Required so `hs -c '...'` (what skhd calls above) has a message port to
 -- connect to. Also install the CLI once, from the Hammerspoon Console:
@@ -27,9 +31,11 @@ hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", hs.reload):start()
 
 local windowSwitcher = require("window_switcher.controller")
 local windowMover = require("window_mover")
+local spaceSwitcher = require("space_switcher")
 
 -- Exposed as globals so `hs -c '...'` (invoked from skhd) can reach them.
 _G.windowSwitcher = windowSwitcher
 _G.windowMover = windowMover
+_G.spaceSwitcher = spaceSwitcher
 
 return windowSwitcher

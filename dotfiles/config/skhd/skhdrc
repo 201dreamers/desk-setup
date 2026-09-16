@@ -123,7 +123,7 @@ ctrl + cmd - s : yabai -m space --layout $(yabai -m query --spaces --space | gre
 # ctrl + cmd - k : /bin/sh -c 'yabai -m window --focus stack.prev || yabai -m window --focus stack.last'
 
 # Jump to your absolute last workspace
-ctrl + cmd - l : yabai -m space --focus last
+ctrl + cmd - l : hs -c 'spaceSwitcher.focusLast()'
 
 # Move focused window to Space N, by grabbing its titlebar and firing macOS's
 # native "Switch to Desktop N" shortcut while held (see window_mover.lua for
