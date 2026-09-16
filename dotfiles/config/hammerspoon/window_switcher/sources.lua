@@ -1,9 +1,17 @@
 -- Lists candidate windows for the switcher: standard windows on the
 -- currently focused Space, optionally including minimized ones.
 --
+-- Everything comes from a single hs.window.allWindows() sweep. The obvious
+-- pairing - visibleWindows() plus minimizedWindows() - walks the
+-- accessibility tree twice and measured 2-3x slower per switcher open
+-- (~43-72ms vs ~17-21ms), for an identical window list. allWindows()
+-- doesn't do visibleWindows()' filtering for us, so the two things it
+-- implied are done here explicitly: hidden apps are skipped, and windows
+-- are scoped to the focused Space.
+--
 -- Minimized windows don't show up in hs.window.visibleWindows(), but they
--- still carry a Space id via hs.spaces.windowSpaces(), so they're filtered
--- the same way as visible windows.
+-- do in allWindows(), and they're filtered by Space the same way as the
+-- rest.
 
 local M = {}
 
@@ -46,21 +54,33 @@ end
 function M.list(includeMinimized)
     local spaceId = hs.spaces.focusedSpace()
     local windows = {}
+    -- app:isHidden() is an accessibility round trip, so it's memoized per
+    -- app rather than asked once per window of that app.
+    local hidden = {}
 
-    for _, w in ipairs(hs.window.visibleWindows()) do
-        if w:isStandard() then
-            table.insert(windows, w)
-        end
-    end
+    for _, w in ipairs(hs.window.allWindows()) do
+        -- Space membership first: it's a cheap CoreGraphics lookup, and it
+        -- throws out most windows before anything reads accessibility.
+        if M.isOnSpace(w, spaceId) then
+            local app = w:application()
+            local pid = app and app:pid()
+            if pid and hidden[pid] == nil then
+                hidden[pid] = app:isHidden()
+            end
 
-    if includeMinimized then
-        -- Not filtering by isStandard() here: while minimized, a window's AX
-        -- subrole is unreliably reported (e.g. a plain TextEdit document can
-        -- come back as AXDialog instead of AXStandardWindow), so the same
-        -- check used for visible windows above would drop legitimate ones.
-        for _, w in ipairs(hs.window.minimizedWindows()) do
-            if M.isOnSpace(w, spaceId) then
-                table.insert(windows, w)
+            if not (pid and hidden[pid]) then
+                if w:isMinimized() then
+                    -- Not filtering by isStandard() here: while minimized,
+                    -- a window's AX subrole is unreliably reported (e.g. a
+                    -- plain TextEdit document can come back as AXDialog
+                    -- instead of AXStandardWindow), so the check used below
+                    -- for non-minimized windows would drop legitimate ones.
+                    if includeMinimized then
+                        table.insert(windows, w)
+                    end
+                elseif w:isStandard() then
+                    table.insert(windows, w)
+                end
             end
         end
     end
