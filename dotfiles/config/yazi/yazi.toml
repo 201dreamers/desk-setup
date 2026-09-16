@@ -1,26 +1,23 @@
 [opener]
 default = [
-    { run = 'open "$@"', desc = "Open with default app" }
+    { run = 'open %s', desc = "Open with default app" }
 ]
 
-# Custom opener for VS Code (GUI)
 cursor = [
-    { run = 'cursor "$@"', orphan = true, desc = "Cursor" }
+    { run = 'cursor %s', orphan = true, desc = "Cursor" }
 ]
 
-# Custom opener for Google Chrome (Mac specific app launcher)
 chrome = [
-    { run = 'open -a "Google Chrome" "$@"', orphan = true, desc = "Google Chrome" }
+    { run = 'open -a "Google Chrome" %s', orphan = true, desc = "Google Chrome" }
 ]
 
 numbers = [
-    { run = "open -a 'Numbers' \"$@\"", desc = "Open with Numbers", orphan = true },
+    { run = 'open -a "Numbers" %s1', desc = "Open with Numbers", orphan = true }
 ]
 
 mdv = [
-    { run = "open -a 'MDV' \"$@\"", desc = "Open with MDV", orphan = true },
+    { run = 'open -a "MDV" %s', desc = "Open with MDV", orphan = true }
 ]
-
 
 [open]
 rules = [
