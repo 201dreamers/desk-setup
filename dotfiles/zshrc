@@ -111,8 +111,9 @@ bindkey '^[[B' history-beginning-search-forward-end
 # Use Emacs-style keybindings in Zsh
 bindkey -e
 
-# Auto-start or attach to tmux
-if [ -z "$TMUX" ] && [ -n "$PS1" ]; then
+# Auto-start or attach to tmux (NO_TMUX_AUTOSTART=1 opts out, e.g. the
+# standalone yazi window from ~/.config/yazi/scripts/open-standalone.sh)
+if [ -z "$TMUX" ] && [ -n "$PS1" ] && [ -z "$NO_TMUX_AUTOSTART" ]; then
     tmux attach-session -t $(tmux list-sessions -F '#{session_id}' 2>/dev/null | tail -n 1) 2>/dev/null || tmux new-session
 fi
 

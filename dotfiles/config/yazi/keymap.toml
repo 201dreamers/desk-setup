@@ -1,0 +1,4 @@
+[[mgr.prepend_keymap]]
+on = "T"
+run = "shell 'sh ~/.config/yazi/scripts/to-tmux.sh %h'"
+desc = "Reopen this yazi in a new tmux window"

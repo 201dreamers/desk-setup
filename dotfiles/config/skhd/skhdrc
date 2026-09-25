@@ -163,6 +163,9 @@ ctrl + cmd - 0x1B : mac-brightnessctl $(echo "$(mac-brightnessctl | awk '{print 
 # ctrl + cmd - return : osascript -e 'tell application "Terminal" to do script ""' -e 'tell application "Terminal" to activate'
 ctrl + cmd - return : osascript -e 'tell application "Ghostty" to make new window' -e 'activate application "Ghostty"'
 
+# yazi in its own Ghostty window, home dir, no tmux (T inside moves it to tmux)
+ctrl + cmd - y : ~/.config/yazi/scripts/open-standalone.sh
+
 # Finder
 ctrl + cmd - e : osascript -e 'tell application "Finder" to make new Finder window to home' -e 'tell application "Finder" to activate'
 
