@@ -1,7 +1,7 @@
 -- Draws the switcher overlay: a rectangle traced over each real window's
 -- on-screen frame (minimized windows have none, so they're skipped here),
 -- two independent vertically-scrollable badge columns - regular windows
--- top-left, minimized windows bottom-left in a darker chip-style color,
+-- top-left, minimized windows bottom-left in a greyer glass style,
 -- both always visible - with the current selection marked by a blue
 -- border in whichever column is currently active, and a help box in the
 -- bottom-right corner.
@@ -15,23 +15,85 @@ local style = require("window_switcher.style")
 
 local M = {}
 
+-- One canvas for the overlay's whole lifetime: draw() swaps its elements
+-- and clear() only hides it, since creating a canvas (a real window) on
+-- every open and every j/k press cost more than redrawing into one.
 local canvas = nil
+-- Elements for the frame being drawn, collected by add() and handed to the
+-- canvas in one replaceElements() call at the end of M.draw.
+local elements = {}
 local notificationCanvas = nil
 local clickHandler = nil
 
+local function add(element)
+    elements[#elements + 1] = element
+end
+
+-- Creates the canvas on first use, and follows the main screen after that
+-- (a different display, or a resolution change).
+local function ensureCanvas(screenFrame)
+    if not canvas then
+        canvas = hs.canvas.new(screenFrame)
+        canvas:level(hs.canvas.windowLevels.overlay)
+        canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
+        canvas:canvasMouseEvents(false, true, false, false)
+        canvas:mouseCallback(function(_, message)
+            if message == "mouseUp" and clickHandler then
+                clickHandler()
+            end
+        end)
+        return
+    end
+    local f = canvas:frame()
+    if f.x ~= screenFrame.x or f.y ~= screenFrame.y or f.w ~= screenFrame.w or f.h ~= screenFrame.h then
+        canvas:frame(screenFrame)
+    end
+end
+
 function M.clear()
     if canvas then
-        canvas:delete()
-        canvas = nil
+        canvas:hide()
     end
+end
+
+-- Builds the canvas and loads text layout up front, so the first open after
+-- a config (re)load doesn't pay for either.
+function M.prewarm()
+    ensureCanvas(hs.screen.mainScreen():frame())
+    canvas:minimumTextSize(hs.styledtext.new("prewarm", { font = style.BADGE_FONT }))
 end
 
 -- Registers a callback fired on left click anywhere in the overlay, so
 -- controller.lua can make clicking act like pressing return/space. Stored
 -- separately from `canvas` since the canvas itself gets torn down and
--- recreated on every redraw, but the handler should stick around.
+-- created lazily (see ensureCanvas), but the handler should stick around.
 function M.onClick(handler)
     clickHandler = handler
+end
+
+-- One rectangle styled as a glass surface (see style.GLASS_*): gradient
+-- fill, rim stroke and (optional) shadow all ride on this single element. Pass
+-- strokeColor/strokeWidth to swap the rim for another border, e.g. the
+-- selection highlight.
+local function glassRect(glass, frame, radii, strokeColor, strokeWidth)
+    local element = {
+        type = "rectangle",
+        frame = frame,
+        fillGradient = "linear",
+        fillGradientAngle = style.GLASS_GRADIENT_ANGLE,
+        fillGradientColors = { glass.top, glass.bottom },
+        strokeColor = strokeColor or glass.rim,
+        strokeWidth = strokeWidth or glass.rimWidth,
+        roundedRectRadii = radii,
+    }
+    -- Only set when on: every attribute is converted into the canvas on
+    -- each redraw, so leaving these off keeps the element as cheap as the
+    -- old flat fill.
+    if style.GLASS_SHADOW_ENABLED then
+        element.withShadow = true
+        element.shadow = style.GLASS_SHADOW
+    end
+    return element
 end
 
 -- Toast notification (e.g. "Minimized windows: shown"), drawn as its own
@@ -64,13 +126,11 @@ function M.showNotification(text)
     notificationCanvas = hs.canvas.new(frame)
     notificationCanvas:level(hs.canvas.windowLevels.overlay)
     notificationCanvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
-    notificationCanvas:appendElements({
-        type = "rectangle",
-        frame = { x = 0, y = 0, w = width, h = style.CHIP_HEIGHT },
-        fillColor = style.CHIP_FILL,
-        strokeColor = { alpha = 0 },
-        roundedRectRadii = { xRadius = style.CHIP_HEIGHT / 2, yRadius = style.CHIP_HEIGHT / 2 },
-    })
+    notificationCanvas:appendElements(glassRect(
+        style.GLASS_CHIP,
+        { x = 0, y = 0, w = width, h = style.CHIP_HEIGHT },
+        { xRadius = style.CHIP_HEIGHT / 2, yRadius = style.CHIP_HEIGHT / 2 }
+    ))
     notificationCanvas:appendElements({
         type = "text",
         frame = { x = 0, y = (style.CHIP_HEIGHT - textSize.h) / 2, w = width, h = textSize.h },
@@ -93,7 +153,7 @@ local function drawWindowFrame(screenFrame, window, color, lineWidth, outlined)
     local radii = { xRadius = 8, yRadius = 8 }
 
     if outlined and style.OUTLINE_ENABLED then
-        canvas:appendElements({
+        add({
             type = "rectangle",
             frame = frame,
             fillColor = { alpha = 0 },
@@ -103,7 +163,7 @@ local function drawWindowFrame(screenFrame, window, color, lineWidth, outlined)
         })
     end
 
-    canvas:appendElements({
+    add({
         type = "rectangle",
         frame = frame,
         fillColor = { alpha = 0 },
@@ -164,10 +224,12 @@ local STRIP_MEASURE_STYLE = { font = STRIP_FONT }
 -- drawing (the actual appendElements calls) don't measure text twice.
 -- maxLabelWidth scales with screen width instead of a fixed pixel cap, so
 -- badges only truncate when a title is genuinely long relative to the
--- display.
-local function buildBadges(windows, maxLabelWidth)
+-- display. numbered adds the 1-9/0 jump key in front of the first ten.
+local function buildBadges(windows, maxLabelWidth, numbered)
     local badges = {}
     for i, window in ipairs(windows) do
+        local number = (numbered and i <= 10) and tostring(i % 10) or nil
+        local numberSpace = number and (style.STRIP_NUMBER_WIDTH + style.STRIP_ICON_GAP) or 0
         local label = truncateMiddle(sources.label(window), STRIP_MEASURE_STYLE, maxLabelWidth)
         local textSize = canvas:minimumTextSize(hs.styledtext.new(label, STRIP_MEASURE_STYLE))
         local icon = sources.appIcon(window)
@@ -177,8 +239,10 @@ local function buildBadges(windows, maxLabelWidth)
             label = label,
             icon = icon,
             iconSpace = iconSpace,
+            number = number,
+            numberSpace = numberSpace,
             textSize = textSize,
-            width = textSize.w + iconSpace + style.STRIP_PADDING_X * 2,
+            width = textSize.w + numberSpace + iconSpace + style.STRIP_PADDING_X * 2,
         })
     end
     return badges
@@ -225,17 +289,19 @@ end
 -- false (the minimized list, bottom-left). selectedIndex highlights one
 -- badge with a blue border; pass nil to render the whole column with
 -- nothing highlighted (the list that isn't currently active for j/k).
+-- Only the highlighted (active) column is numbered, since that's the list
+-- the digit keys jump within.
 --
 -- The selected badge stays in the same fixed slot for most of the list -
 -- only near the very top or bottom, where the fixed-size window would run
 -- past the list's edge, does its slot shift a little to avoid empty rows.
--- opts = { windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, fill, textColor }
+-- opts = { windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, glass, textColor }
 -- (see call sites in M.draw for what each field means) - bundled into a table
--- since several are same-typed neighbors (x/anchorY, fill/textColor) that a
+-- since several are same-typed neighbors (x/anchorY, glass/textColor) that a
 -- positional call could silently transpose.
 local function drawBadgeColumn(screenFrame, opts)
     local maxLabelWidth = screenFrame.w * style.STRIP_MAX_LABEL_WIDTH_RATIO
-    local badges = buildBadges(opts.windows, maxLabelWidth)
+    local badges = buildBadges(opts.windows, maxLabelWidth, opts.selectedIndex ~= nil)
     if #badges == 0 then
         return
     end
@@ -265,7 +331,7 @@ local function drawBadgeColumn(screenFrame, opts)
         local badgeRadii = { xRadius = style.STRIP_HEIGHT / 2, yRadius = style.STRIP_HEIGHT / 2 }
 
         if selected and style.OUTLINE_ENABLED then
-            canvas:appendElements({
+            add({
                 type = "rectangle",
                 frame = { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
                 fillColor = { alpha = 0 },
@@ -275,20 +341,36 @@ local function drawBadgeColumn(screenFrame, opts)
             })
         end
 
-        canvas:appendElements({
-            type = "rectangle",
-            frame = { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
-            fillColor = opts.fill,
-            strokeColor = selected and style.HIGHLIGHT or { alpha = 0 },
-            strokeWidth = selected and style.STRIP_SELECTED_BORDER_WIDTH or 0,
-            roundedRectRadii = badgeRadii,
-        })
+        add(glassRect(
+            opts.glass,
+            { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
+            badgeRadii,
+            selected and style.HIGHLIGHT or nil,
+            selected and style.STRIP_SELECTED_BORDER_WIDTH or nil
+        ))
 
-        if badge.icon then
-            canvas:appendElements({
-                type = "image",
+        if badge.number then
+            add({
+                type = "text",
                 frame = {
                     x = x + style.STRIP_PADDING_X,
+                    y = y + (style.STRIP_HEIGHT - badge.textSize.h) / 2,
+                    w = style.STRIP_NUMBER_WIDTH,
+                    h = badge.textSize.h,
+                },
+                text = hs.styledtext.new(badge.number, {
+                    font = style.STRIP_NUMBER_FONT,
+                    color = opts.textColor,
+                    paragraphStyle = { alignment = "center" },
+                }),
+            })
+        end
+
+        if badge.icon then
+            add({
+                type = "image",
+                frame = {
+                    x = x + style.STRIP_PADDING_X + badge.numberSpace,
                     y = y + (style.STRIP_HEIGHT - style.STRIP_ICON_SIZE) / 2,
                     w = style.STRIP_ICON_SIZE,
                     h = style.STRIP_ICON_SIZE,
@@ -297,10 +379,10 @@ local function drawBadgeColumn(screenFrame, opts)
             })
         end
 
-        canvas:appendElements({
+        add({
             type = "text",
             frame = {
-                x = x + style.STRIP_PADDING_X + badge.iconSpace,
+                x = x + style.STRIP_PADDING_X + badge.numberSpace + badge.iconSpace,
                 y = y + (style.STRIP_HEIGHT - badge.textSize.h) / 2,
                 w = badge.textSize.w,
                 h = badge.textSize.h,
@@ -321,7 +403,7 @@ end
 -- Row height is a fixed constant (not measured) - simpler and avoids the
 -- canvas text-measurement API entirely for five short, static rows.
 local function drawHelpRow(x, y, descriptionWidth, key, description)
-    canvas:appendElements({
+    add({
         type = "text",
         frame = { x = x, y = y, w = style.HELP_KEY_COLUMN_WIDTH - style.HELP_COLUMN_GAP, h = style.HELP_ROW_HEIGHT },
         text = hs.styledtext.new(key .. " -", {
@@ -330,7 +412,7 @@ local function drawHelpRow(x, y, descriptionWidth, key, description)
             paragraphStyle = { alignment = "right" },
         }),
     })
-    canvas:appendElements({
+    add({
         type = "text",
         frame = { x = x + style.HELP_KEY_COLUMN_WIDTH, y = y, w = descriptionWidth, h = style.HELP_ROW_HEIGHT },
         text = hs.styledtext.new(description, {
@@ -348,13 +430,11 @@ local function drawHelpBox(screenFrame)
     local boxX = screenFrame.w - style.HELP_MARGIN - style.HELP_WIDTH
     local boxY = screenFrame.h - style.HELP_MARGIN - boxHeight
 
-    canvas:appendElements({
-        type = "rectangle",
-        frame = { x = boxX, y = boxY, w = style.HELP_WIDTH, h = boxHeight },
-        fillColor = style.BACKGROUND_FILL,
-        strokeColor = { alpha = 0 },
-        roundedRectRadii = style.BACKGROUND_RADII,
-    })
+    add(glassRect(
+        style.GLASS_PANEL,
+        { x = boxX, y = boxY, w = style.HELP_WIDTH, h = boxHeight },
+        style.BACKGROUND_RADII
+    ))
 
     local rowY = boxY + style.HELP_PADDING
     for _, row in ipairs(style.HELP_ROWS) do
@@ -373,17 +453,9 @@ end
 --   helpVisible: whether the "?"-toggled help box should be drawn.
 -- }
 function M.draw(state)
-    M.clear()
     local screenFrame = hs.screen.mainScreen():frame()
-    canvas = hs.canvas.new(screenFrame)
-    canvas:level(hs.canvas.windowLevels.overlay)
-    canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
-    canvas:canvasMouseEvents(false, true, false, false)
-    canvas:mouseCallback(function(_, message)
-        if message == "mouseUp" and clickHandler then
-            clickHandler()
-        end
-    end)
+    ensureCanvas(screenFrame)
+    elements = {}
 
     if state.helpVisible then
         drawHelpBox(screenFrame)
@@ -408,7 +480,7 @@ function M.draw(state)
         selectedIndex = state.activeList == "regular" and state.regularSelectedIndex or nil,
         x = style.HELP_MARGIN, anchorY = style.HELP_MARGIN, anchoredToTop = true,
         maxHeight = screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO,
-        fill = style.STRIP_FILL, textColor = style.STRIP_TEXT_COLOR,
+        glass = style.GLASS_STRIP, textColor = style.STRIP_TEXT_COLOR,
     })
 
     local minimizedMaxHeight = stackedHeight(style.MINIMIZED_MAX_ROWS, style.STRIP_HEIGHT, style.STRIP_GAP)
@@ -417,9 +489,12 @@ function M.draw(state)
         selectedIndex = state.activeList == "minimized" and state.minimizedSelectedIndex or nil,
         x = style.HELP_MARGIN, anchorY = screenFrame.h - style.HELP_MARGIN, anchoredToTop = false,
         maxHeight = minimizedMaxHeight,
-        fill = style.CHIP_FILL, textColor = style.TEXT_COLOR,
+        glass = style.GLASS_CHIP, textColor = style.TEXT_COLOR,
     })
 
+    -- controller.lua never draws with both lists empty, so there's always
+    -- at least one badge here (replaceElements rejects an empty list).
+    canvas:replaceElements(elements)
     canvas:show()
 end
 

@@ -1,16 +1,21 @@
 -- Lists candidate windows for the switcher: standard windows on the
 -- currently focused Space, optionally including minimized ones.
 --
--- Everything comes from a single hs.window.allWindows() sweep. The obvious
--- pairing - visibleWindows() plus minimizedWindows() - walks the
--- accessibility tree twice and measured 2-3x slower per switcher open
--- (~43-72ms vs ~17-21ms), for an identical window list. allWindows()
--- doesn't do visibleWindows()' filtering for us, so the two things it
--- implied are done here explicitly: hidden apps are skipped, and windows
--- are scoped to the focused Space.
+-- Windows are collected app by app rather than through
+-- hs.window.allWindows(). allWindows() asks every app with kind() >= 0 for
+-- its windows, menu-bar agents and background helpers included - ~140 apps
+-- here vs ~19 regular ones, and the agents were ~73% of the sweep's cost
+-- while owning no switchable windows. Each app is an accessibility round
+-- trip, and an app macOS has napped answers slowly the first time after
+-- idle, which is what made the first switcher open feel sluggish. So only
+-- regular (Dock) apps are asked, plus the frontmost app whatever its kind,
+-- so a focused window of an accessory app (e.g. the Hammerspoon Console
+-- with its Dock icon hidden) still shows up. Hidden apps are skipped before
+-- they're asked anything.
 --
--- Minimized windows don't show up in hs.window.visibleWindows(), but they
--- do in allWindows(), and they're filtered by Space the same way as the
+-- The obvious visibleWindows() plus minimizedWindows() pairing walks the
+-- same app list twice, so it's no better - minimized windows come from the
+-- same per-app query here and are filtered by Space the same way as the
 -- rest.
 
 local M = {}
@@ -23,10 +28,20 @@ function M.label(window)
     return string.format("%s - %s", M.appName(window), window:title() or "")
 end
 
+-- Icons are loaded from disk per bundle ID, and the overlay asks for them on
+-- every redraw (each j/k press), so they're cached for the session.
+local iconCache = {}
+
 function M.appIcon(window)
     local app = window:application()
     local bundleID = app and app:bundleID()
-    return bundleID and hs.image.imageFromAppBundle(bundleID) or nil
+    if not bundleID then
+        return nil
+    end
+    if iconCache[bundleID] == nil then
+        iconCache[bundleID] = hs.image.imageFromAppBundle(bundleID) or false
+    end
+    return iconCache[bundleID] or nil
 end
 
 function M.isOnSpace(window, spaceId)
@@ -51,24 +66,29 @@ function M.indexOfFocused(windows)
     return nil
 end
 
-function M.list(includeMinimized)
-    local spaceId = hs.spaces.focusedSpace()
+-- Regular apps plus the frontmost one (see header), minus hidden ones.
+local function candidateApps()
+    local frontmost = hs.application.frontmostApplication()
+    local frontmostPid = frontmost and frontmost:pid()
+    local apps = {}
+    for _, app in ipairs(hs.application.runningApplications()) do
+        if (app:kind() == 1 or app:pid() == frontmostPid) and not app:isHidden() then
+            table.insert(apps, app)
+        end
+    end
+    return apps
+end
+
+-- spaceId defaults to the focused Space.
+function M.list(includeMinimized, spaceId)
+    spaceId = spaceId or hs.spaces.focusedSpace()
     local windows = {}
-    -- app:isHidden() is an accessibility round trip, so it's memoized per
-    -- app rather than asked once per window of that app.
-    local hidden = {}
 
-    for _, w in ipairs(hs.window.allWindows()) do
-        -- Space membership first: it's a cheap CoreGraphics lookup, and it
-        -- throws out most windows before anything reads accessibility.
-        if M.isOnSpace(w, spaceId) then
-            local app = w:application()
-            local pid = app and app:pid()
-            if pid and hidden[pid] == nil then
-                hidden[pid] = app:isHidden()
-            end
-
-            if not (pid and hidden[pid]) then
+    for _, app in ipairs(candidateApps()) do
+        for _, w in ipairs(app:allWindows()) do
+            -- Space membership first: it's a cheap CoreGraphics lookup, and
+            -- it throws out most windows before anything reads accessibility.
+            if M.isOnSpace(w, spaceId) then
                 if w:isMinimized() then
                     -- Not filtering by isStandard() here: while minimized,
                     -- a window's AX subrole is unreliably reported (e.g. a
@@ -85,8 +105,23 @@ function M.list(includeMinimized)
         end
     end
 
+    -- Alphabetical by app, then by title within an app, case-insensitive
+    -- (plain byte order would put "iTerm" after "Zed"). Keys are read once
+    -- up front since each is an accessibility call, and the id breaks ties
+    -- so equal names don't swap places (and renumber) between opens.
+    local keys = {}
+    for _, w in ipairs(windows) do
+        keys[w] = { M.appName(w):lower(), (w:title() or ""):lower(), w:id() or 0 }
+    end
     table.sort(windows, function(a, b)
-        return M.appName(a) < M.appName(b)
+        local ka, kb = keys[a], keys[b]
+        if ka[1] ~= kb[1] then
+            return ka[1] < kb[1]
+        end
+        if ka[2] ~= kb[2] then
+            return ka[2] < kb[2]
+        end
+        return ka[3] < kb[3]
     end)
 
     return windows
