@@ -21,9 +21,13 @@ local M = {}
 --        move to another one with tab/j/k.
 -- false: opening the switcher jumps straight to the next window (classic
 --        alt-tab feel, like macOS's own app switcher).
-local START_ON_CURRENT_WINDOW = true
+local START_ON_CURRENT_WINDOW = false
 
-local modal = hs.hotkey.modal.new()
+-- Keyboard is grabbed with an eventtap rather than an hs.hotkey.modal: a
+-- modal only captures the keys bound in it, so any other key pressed while
+-- the switcher is open would still reach the previously focused window.
+-- The tap swallows every key event while open and dispatches them itself.
+local keyTap = nil
 -- Both lists always travel together (same shape, same operations), so they
 -- live in one table keyed by name instead of four parallel variables - every
 -- function that needs "whichever list is active" does one lookup instead of
@@ -222,7 +226,7 @@ function M.show()
     lists.regular.selectedIndex = initialSelectedIndex()
     helpVisible = false
     redraw()
-    modal:enter()
+    keyTap:start()
 
     if fromCache then
         local cachedIds = windowIds(cached)
@@ -239,25 +243,58 @@ end
 
 function M.hide()
     generation = generation + 1
-    modal:exit()
+    keyTap:stop()
     overlay.clear()
 end
 
-modal:bind({}, "down", function() moveSelection(1) end)
-modal:bind({}, "up", function() moveSelection(-1) end)
-modal:bind({}, "j", function() moveSelection(1) end)
-modal:bind({}, "k", function() moveSelection(-1) end)
-modal:bind({}, "return", focusSelected)
-modal:bind({}, "space", focusSelected)
-modal:bind({}, "escape", M.hide)
-modal:bind({}, "m", M.toggleActiveList)
-for position = 1, 10 do
-    modal:bind({}, tostring(position % 10), function() focusNumber(position) end)
-end
--- "?" has no direct hs.hotkey key name - it's shift + "/".
-modal:bind({ "shift" }, "/", function()
+local function toggleHelp()
     helpVisible = not helpVisible
     redraw()
+end
+
+-- Key name (as hs.keycodes.map reports it) -> action. Keys that need shift
+-- ("?", shift-tab) are resolved in handleKey before this lookup.
+local actions = {
+    down = function() moveSelection(1) end,
+    up = function() moveSelection(-1) end,
+    j = function() moveSelection(1) end,
+    k = function() moveSelection(-1) end,
+    tab = function() moveSelection(1) end,
+    ["return"] = focusSelected,
+    space = focusSelected,
+    escape = M.hide,
+    m = M.toggleActiveList,
+}
+for position = 1, 10 do
+    actions[tostring(position % 10)] = function() focusNumber(position) end
+end
+
+local function handleKey(event)
+    local key = hs.keycodes.map[event:getKeyCode()]
+    local shift = event:getFlags().shift
+    local action
+    if shift and key == "tab" then
+        action = function() moveSelection(-1) end
+    elseif shift and key == "/" then
+        -- "?" is shift + "/".
+        action = toggleHelp
+    elseif not shift then
+        action = actions[key]
+    end
+    if action then
+        -- Run outside the tap callback: focusing a window can block on a
+        -- slow app, and macOS disables a tap whose callback stalls.
+        hs.timer.doAfter(0, action)
+    end
+end
+
+keyTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown, hs.eventtap.event.types.keyUp }, function(event)
+    if event:getType() == hs.eventtap.event.types.keyDown then
+        handleKey(event)
+    end
+    -- Swallow everything (keyUp too, and unmapped keys) so nothing reaches
+    -- the window underneath while the switcher is open.
+    return true
 end)
 
 -- Prewarm on (re)load: build the first window list and the overlay canvas

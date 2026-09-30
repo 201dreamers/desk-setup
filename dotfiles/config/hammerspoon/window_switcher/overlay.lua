@@ -224,12 +224,12 @@ local STRIP_MEASURE_STYLE = { font = STRIP_FONT }
 -- drawing (the actual appendElements calls) don't measure text twice.
 -- maxLabelWidth scales with screen width instead of a fixed pixel cap, so
 -- badges only truncate when a title is genuinely long relative to the
--- display. numbered adds the 1-9/0 jump key in front of the first ten.
+-- display. numbered gives the first ten their 1-9/0 jump key (drawn in a
+-- separate circle, so it doesn't count toward the badge's own width).
 local function buildBadges(windows, maxLabelWidth, numbered)
     local badges = {}
     for i, window in ipairs(windows) do
         local number = (numbered and i <= 10) and tostring(i % 10) or nil
-        local numberSpace = number and (style.STRIP_NUMBER_WIDTH + style.STRIP_ICON_GAP) or 0
         local label = truncateMiddle(sources.label(window), STRIP_MEASURE_STYLE, maxLabelWidth)
         local textSize = canvas:minimumTextSize(hs.styledtext.new(label, STRIP_MEASURE_STYLE))
         local icon = sources.appIcon(window)
@@ -240,9 +240,8 @@ local function buildBadges(windows, maxLabelWidth, numbered)
             icon = icon,
             iconSpace = iconSpace,
             number = number,
-            numberSpace = numberSpace,
             textSize = textSize,
-            width = textSize.w + numberSpace + iconSpace + style.STRIP_PADDING_X * 2,
+            width = textSize.w + iconSpace + style.STRIP_PADDING_X * 2,
         })
     end
     return badges
@@ -295,7 +294,8 @@ end
 -- The selected badge stays in the same fixed slot for most of the list -
 -- only near the very top or bottom, where the fixed-size window would run
 -- past the list's edge, does its slot shift a little to avoid empty rows.
--- opts = { windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, glass, textColor }
+-- opts = { windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, glass, numberGlass, textColor }
+-- (numberGlass is optional - number circles fall back to glass)
 -- (see call sites in M.draw for what each field means) - bundled into a table
 -- since several are same-typed neighbors (x/anchorY, glass/textColor) that a
 -- positional call could silently transpose.
@@ -325,37 +325,29 @@ local function drawBadgeColumn(screenFrame, opts)
         y = opts.anchorY - stackedHeight(last - first + 1, style.STRIP_HEIGHT, style.STRIP_GAP)
     end
 
+    local numberRadii = { xRadius = style.STRIP_NUMBER_SIZE / 2, yRadius = style.STRIP_NUMBER_SIZE / 2 }
+    local badgeX = x + style.STRIP_NUMBER_SIZE + style.STRIP_NUMBER_GAP
+
     for i = first, last do
         local badge = badges[i]
         local selected = (i == selectedPos)
         local badgeRadii = { xRadius = style.STRIP_HEIGHT / 2, yRadius = style.STRIP_HEIGHT / 2 }
 
-        if selected and style.OUTLINE_ENABLED then
-            add({
-                type = "rectangle",
-                frame = { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
-                fillColor = { alpha = 0 },
-                strokeColor = style.OUTLINE_COLOR,
-                strokeWidth = style.STRIP_SELECTED_BORDER_WIDTH + style.OUTLINE_EXTRA_WIDTH,
-                roundedRectRadii = badgeRadii,
-            })
-        end
-
-        add(glassRect(
-            opts.glass,
-            { x = x, y = y, w = badge.width, h = style.STRIP_HEIGHT },
-            badgeRadii,
-            selected and style.HIGHLIGHT or nil,
-            selected and style.STRIP_SELECTED_BORDER_WIDTH or nil
-        ))
-
         if badge.number then
+            local circleY = y + (style.STRIP_HEIGHT - style.STRIP_NUMBER_SIZE) / 2
+            add(glassRect(
+                opts.numberGlass or opts.glass,
+                { x = x, y = circleY, w = style.STRIP_NUMBER_SIZE, h = style.STRIP_NUMBER_SIZE },
+                numberRadii,
+                selected and style.HIGHLIGHT or nil,
+                selected and style.STRIP_NUMBER_SELECTED_BORDER_WIDTH or nil
+            ))
             add({
                 type = "text",
                 frame = {
-                    x = x + style.STRIP_PADDING_X,
+                    x = x,
                     y = y + (style.STRIP_HEIGHT - badge.textSize.h) / 2,
-                    w = style.STRIP_NUMBER_WIDTH,
+                    w = style.STRIP_NUMBER_SIZE,
                     h = badge.textSize.h,
                 },
                 text = hs.styledtext.new(badge.number, {
@@ -366,11 +358,30 @@ local function drawBadgeColumn(screenFrame, opts)
             })
         end
 
+        if selected and style.OUTLINE_ENABLED then
+            add({
+                type = "rectangle",
+                frame = { x = badgeX, y = y, w = badge.width, h = style.STRIP_HEIGHT },
+                fillColor = { alpha = 0 },
+                strokeColor = style.OUTLINE_COLOR,
+                strokeWidth = style.STRIP_SELECTED_BORDER_WIDTH + style.OUTLINE_EXTRA_WIDTH,
+                roundedRectRadii = badgeRadii,
+            })
+        end
+
+        add(glassRect(
+            opts.glass,
+            { x = badgeX, y = y, w = badge.width, h = style.STRIP_HEIGHT },
+            badgeRadii,
+            selected and style.HIGHLIGHT or nil,
+            selected and style.STRIP_SELECTED_BORDER_WIDTH or nil
+        ))
+
         if badge.icon then
             add({
                 type = "image",
                 frame = {
-                    x = x + style.STRIP_PADDING_X + badge.numberSpace,
+                    x = badgeX + style.STRIP_PADDING_X,
                     y = y + (style.STRIP_HEIGHT - style.STRIP_ICON_SIZE) / 2,
                     w = style.STRIP_ICON_SIZE,
                     h = style.STRIP_ICON_SIZE,
@@ -382,7 +393,7 @@ local function drawBadgeColumn(screenFrame, opts)
         add({
             type = "text",
             frame = {
-                x = x + style.STRIP_PADDING_X + badge.numberSpace + badge.iconSpace,
+                x = badgeX + style.STRIP_PADDING_X + badge.iconSpace,
                 y = y + (style.STRIP_HEIGHT - badge.textSize.h) / 2,
                 w = badge.textSize.w,
                 h = badge.textSize.h,
@@ -480,7 +491,7 @@ function M.draw(state)
         selectedIndex = state.activeList == "regular" and state.regularSelectedIndex or nil,
         x = style.HELP_MARGIN, anchorY = style.HELP_MARGIN, anchoredToTop = true,
         maxHeight = screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO,
-        glass = style.GLASS_STRIP, textColor = style.STRIP_TEXT_COLOR,
+        glass = style.GLASS_STRIP, numberGlass = style.GLASS_NUMBER, textColor = style.STRIP_TEXT_COLOR,
     })
 
     local minimizedMaxHeight = stackedHeight(style.MINIMIZED_MAX_ROWS, style.STRIP_HEIGHT, style.STRIP_GAP)

@@ -44,6 +44,14 @@ M.GLASS_STRIP = {
     rim = { white = 0.72, alpha = 0.55 },
     rimWidth = 1,
 }
+-- Number circles next to regular badges: same glass, a touch greyer so
+-- the circle reads as separate from the badge it belongs to.
+M.GLASS_NUMBER = {
+    top = { white = 0.95, alpha = 0.95 },
+    bottom = { white = 0.88, alpha = 0.9 },
+    rim = { white = 0.7, alpha = 0.55 },
+    rimWidth = 1,
+}
 -- Minimized column and toast: same glass, greyer and a bit more
 -- see-through so it reads as secondary next to the regular column.
 M.GLASS_CHIP = {
@@ -80,9 +88,14 @@ M.STRIP_MAX_LABEL_WIDTH_RATIO = 0.4
 M.STRIP_MAX_HEIGHT_RATIO = 0.7
 M.STRIP_TEXT_COLOR = { white = 0.12 }
 M.STRIP_SELECTED_BORDER_WIDTH = 4
--- Jump-key number (1-9, 0) drawn in front of the icon on the active column.
-M.STRIP_NUMBER_WIDTH = 10
+-- Jump-key number (1-9, 0) on the active column, drawn in its own glass
+-- circle detached to the left of each badge. The circle's slot is reserved
+-- on every row (numbered or not, either column) so badges never shift
+-- sideways when the active list changes.
+M.STRIP_NUMBER_SIZE = M.STRIP_HEIGHT
+M.STRIP_NUMBER_GAP = 9
 M.STRIP_NUMBER_FONT = { name = ".AppleSystemUIFontBold", size = 13 }
+M.STRIP_NUMBER_SELECTED_BORDER_WIDTH = M.STRIP_SELECTED_BORDER_WIDTH
 
 -- Minimized column (bottom-left) is capped to a fixed row count rather
 -- than a screen-height ratio, since it's always visible alongside the
@@ -108,8 +121,10 @@ M.HELP_COLUMN_GAP = 8
 M.HELP_FONT = "Menlo"
 M.HELP_TEXT_SIZE = 13
 M.HELP_ROWS = {
+    { "tab", "next" },
     { "j", "next" },
     { "down", "next" },
+    { "S-tab", "prev" },
     { "k", "prev" },
     { "up", "prev" },
     { "1-9, 0", "jump to #" },
