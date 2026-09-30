@@ -4,6 +4,10 @@
 
 local M = {}
 
+-- Borders traced over each real on-screen window while the switcher is
+-- open. Off: only the badge columns are drawn. Flip to true to bring the
+-- frames back (colors/widths below still apply).
+M.WINDOW_FRAMES_ENABLED = false
 -- Window-frame highlighting (borders traced over real on-screen windows),
 -- also the selected badge's border - macOS's system accent blue.
 M.HIGHLIGHT = { red = 0.0, green = 0.48, blue = 1.0, alpha = 0.95 }
@@ -60,6 +64,18 @@ M.GLASS_CHIP = {
     rim = { white = 0.66, alpha = 0.5 },
     rimWidth = 1,
 }
+-- Backdrop panel behind each badge column, like the dark smoked glass
+-- behind macOS's own app switcher - darker and more see-through than the
+-- badges so they stand out on top of it.
+M.GLASS_BACKDROP = {
+    top = { white = 0.22, alpha = 0.55 },
+    bottom = { white = 0.14, alpha = 0.6 },
+    rim = { white = 1, alpha = 0.18 },
+    rimWidth = 1,
+}
+M.BACKDROP_PADDING = 12
+-- Vertical gap between the regular and minimized panels when both show.
+M.COLUMN_GAP = 12
 -- Help box: the most opaque, since it holds the most small text.
 M.GLASS_PANEL = {
     top = { white = 0.98, alpha = 0.96 },
@@ -76,10 +92,12 @@ M.GLASS_GRADIENT_ANGLE = 90
 M.GLASS_SHADOW_ENABLED = false
 M.GLASS_SHADOW = { blurRadius = 8, color = { alpha = 0.28 }, offset = { h = -2, w = 0 } }
 
--- Badge columns (regular top-left, minimized bottom-left), each scrolling
+-- Badge columns (centered; regular on top, minimized below), each scrolling
 -- vertically to keep its own selection visible
 M.ELLIPSIS = " … "
 M.STRIP_HEIGHT = 34
+-- How far above the screen's vertical center the panels sit - one badge.
+M.CENTER_OFFSET_Y = M.STRIP_HEIGHT
 M.STRIP_GAP = 10
 M.STRIP_PADDING_X = 14
 M.STRIP_ICON_SIZE = 18
@@ -94,10 +112,13 @@ M.STRIP_SELECTED_BORDER_WIDTH = 4
 -- sideways when the active list changes.
 M.STRIP_NUMBER_SIZE = M.STRIP_HEIGHT
 M.STRIP_NUMBER_GAP = 9
+-- How far left of the screen's horizontal center the panels sit - one
+-- number circle.
+M.CENTER_OFFSET_X = M.STRIP_NUMBER_SIZE
 M.STRIP_NUMBER_FONT = { name = ".AppleSystemUIFontBold", size = 13 }
 M.STRIP_NUMBER_SELECTED_BORDER_WIDTH = M.STRIP_SELECTED_BORDER_WIDTH
 
--- Minimized column (bottom-left) is capped to a fixed row count rather
+-- Minimized column (below the regular one) is capped to a fixed row count rather
 -- than a screen-height ratio, since it's always visible alongside the
 -- regular column and shouldn't compete with it for vertical space.
 M.MINIMIZED_MAX_ROWS = 5
@@ -116,7 +137,7 @@ M.HELP_MARGIN = 20
 M.HELP_PADDING = 14
 M.HELP_ROW_GAP = 4
 M.HELP_ROW_HEIGHT = 20
-M.HELP_KEY_COLUMN_WIDTH = 75
+M.HELP_KEY_COLUMN_WIDTH = 95
 M.HELP_COLUMN_GAP = 8
 M.HELP_FONT = "Menlo"
 M.HELP_TEXT_SIZE = 13
@@ -128,10 +149,10 @@ M.HELP_ROWS = {
     { "k", "prev" },
     { "up", "prev" },
     { "1-9, 0", "jump to #" },
+    { "a 1-9, 0", "jump to a#" },
     { "return", "select" },
     { "space", "select" },
-    { "click", "select" },
-    { "m", "switch list" },
+    { "click", "open badge" },
     { "esc", "cancel" },
     { "?", "toggle help" },
 }

@@ -1,10 +1,10 @@
--- Draws the switcher overlay: a rectangle traced over each real window's
--- on-screen frame (minimized windows have none, so they're skipped here),
--- two independent vertically-scrollable badge columns - regular windows
--- top-left, minimized windows bottom-left in a greyer glass style,
--- both always visible - with the current selection marked by a blue
--- border in whichever column is currently active, and a help box in the
--- bottom-right corner.
+-- Draws the switcher overlay: optionally a rectangle traced over each real
+-- window's on-screen frame (style.WINDOW_FRAMES_ENABLED; minimized windows
+-- have none, so they're skipped), two independent vertically-scrollable
+-- badge columns stacked in the center of the screen - regular windows on
+-- top, minimized windows below in a greyer glass style, both always
+-- visible - with the current selection marked by a blue border in the
+-- regular column, and a help box in the bottom-right corner.
 --
 -- Only owns rendering - it knows nothing about how the window lists or the
 -- selection indices came to be, so styling can change without touching
@@ -37,10 +37,14 @@ local function ensureCanvas(screenFrame)
         canvas:level(hs.canvas.windowLevels.overlay)
         canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
         canvas:canvasMouseEvents(false, true, false, false)
-        canvas:mouseCallback(function(_, message)
-            if message == "mouseUp" and clickHandler then
-                clickHandler()
+        -- Badges and their number circles carry an id "<list>:<index>"
+        -- (see drawBadgeColumn); a click anywhere else reports "_canvas_".
+        canvas:mouseCallback(function(_, message, id)
+            if message ~= "mouseUp" or not clickHandler then
+                return
             end
+            local list, index = tostring(id):match("^(%a+):(%d+)$")
+            clickHandler(list and { list = list, index = tonumber(index) } or nil)
         end)
         return
     end
@@ -63,8 +67,9 @@ function M.prewarm()
     canvas:minimumTextSize(hs.styledtext.new("prewarm", { font = style.BADGE_FONT }))
 end
 
--- Registers a callback fired on left click anywhere in the overlay, so
--- controller.lua can make clicking act like pressing return/space. Stored
+-- Registers a callback fired on left click anywhere in the overlay. It gets
+-- { list = "regular" | "minimized", index } when a badge (or its number
+-- circle) was clicked, or nil for a click anywhere else. Stored
 -- separately from `canvas` since the canvas itself gets torn down and
 -- created lazily (see ensureCanvas), but the handler should stick around.
 function M.onClick(handler)
@@ -224,12 +229,13 @@ local STRIP_MEASURE_STYLE = { font = STRIP_FONT }
 -- drawing (the actual appendElements calls) don't measure text twice.
 -- maxLabelWidth scales with screen width instead of a fixed pixel cap, so
 -- badges only truncate when a title is genuinely long relative to the
--- display. numbered gives the first ten their 1-9/0 jump key (drawn in a
--- separate circle, so it doesn't count toward the badge's own width).
-local function buildBadges(windows, maxLabelWidth, numbered)
+-- display. Window i gets jump position numberOffset + i, labelled by
+-- jumpLabel (nil for no label; drawn in a separate circle, so it doesn't
+-- count toward the badge's own width).
+local function buildBadges(windows, maxLabelWidth, numberOffset, jumpLabel)
     local badges = {}
     for i, window in ipairs(windows) do
-        local number = (numbered and i <= 10) and tostring(i % 10) or nil
+        local number = jumpLabel(numberOffset + i)
         local label = truncateMiddle(sources.label(window), STRIP_MEASURE_STYLE, maxLabelWidth)
         local textSize = canvas:minimumTextSize(hs.styledtext.new(label, STRIP_MEASURE_STYLE))
         local icon = sources.appIcon(window)
@@ -282,28 +288,34 @@ local function clampedRange(count, anchorPos, rows)
     return first, last
 end
 
--- Vertical, left-aligned stack of pill badges, one per window in `windows`.
--- Grows downward from (x, anchorY) when anchoredToTop is true (the regular
--- list, top-left), or upward with its bottom edge pinned to anchorY when
--- false (the minimized list, bottom-left). selectedIndex highlights one
--- badge with a blue border; pass nil to render the whole column with
--- nothing highlighted (the list that isn't currently active for j/k).
--- Only the highlighted (active) column is numbered, since that's the list
--- the digit keys jump within.
+-- Vertical, left-aligned stack of pill badges, one per window in `windows`,
+-- on a backdrop panel like macOS's own switcher. Split into layout and
+-- draw so M.draw can size both columns first and then center them on
+-- screen together. selectedIndex highlights one badge with a blue border;
+-- pass nil to render the whole column with nothing highlighted (the list
+-- that can't be selected, i.e. minimized windows). Both columns are
+-- numbered, continuing from one to the next via numberOffset.
 --
 -- The selected badge stays in the same fixed slot for most of the list -
 -- only near the very top or bottom, where the fixed-size window would run
 -- past the list's edge, does its slot shift a little to avoid empty rows.
--- opts = { windows, selectedIndex, x, anchorY, anchoredToTop, maxHeight, glass, numberGlass, textColor }
+-- opts = { list, windows, selectedIndex, numberOffset, jumpLabel,
+--         maxHeight, glass, numberGlass, textColor }
+-- (list is "regular" | "minimized", reported back on click)
 -- (numberGlass is optional - number circles fall back to glass)
 -- (see call sites in M.draw for what each field means) - bundled into a table
--- since several are same-typed neighbors (x/anchorY, glass/textColor) that a
+-- since several are same-typed neighbors (glass/textColor) that a
 -- positional call could silently transpose.
-local function drawBadgeColumn(screenFrame, opts)
+--
+-- Returns nil for an empty list, otherwise the layout for drawBadgeColumn
+-- with the panel's natural size in width/height. Width follows the widest
+-- badge in the whole list, not just the visible rows, so the panel doesn't
+-- resize while scrolling.
+local function layoutBadgeColumn(screenFrame, opts)
     local maxLabelWidth = screenFrame.w * style.STRIP_MAX_LABEL_WIDTH_RATIO
-    local badges = buildBadges(opts.windows, maxLabelWidth, opts.selectedIndex ~= nil)
+    local badges = buildBadges(opts.windows, maxLabelWidth, opts.numberOffset, opts.jumpLabel)
     if #badges == 0 then
-        return
+        return nil
     end
 
     local selectedPos = nil
@@ -317,31 +329,62 @@ local function drawBadgeColumn(screenFrame, opts)
     local rows = visibleRowCount(opts.maxHeight)
     local first, last = clampedRange(#badges, selectedPos or 1, rows)
 
-    local x = opts.x
-    local y
-    if opts.anchoredToTop then
-        y = opts.anchorY
-    else
-        y = opts.anchorY - stackedHeight(last - first + 1, style.STRIP_HEIGHT, style.STRIP_GAP)
+    local maxBadgeWidth = 0
+    for _, badge in ipairs(badges) do
+        maxBadgeWidth = math.max(maxBadgeWidth, badge.width)
     end
+    local padding = style.BACKDROP_PADDING
+    return {
+        opts = opts,
+        badges = badges,
+        selectedPos = selectedPos,
+        first = first,
+        last = last,
+        width = style.STRIP_NUMBER_SIZE + style.STRIP_NUMBER_GAP + maxBadgeWidth + padding * 2,
+        height = stackedHeight(last - first + 1, style.STRIP_HEIGHT, style.STRIP_GAP) + padding * 2,
+    }
+end
+
+-- Draws a column laid out by layoutBadgeColumn with its panel's top-left
+-- corner at (panelX, panelY), panelWidth wide (may exceed the layout's own
+-- width, so stacked columns can share one width).
+local function drawBadgeColumn(layout, panelX, panelY, panelWidth)
+    local opts, badges, selectedPos = layout.opts, layout.badges, layout.selectedPos
+    local padding = style.BACKDROP_PADDING
+    -- Concentric with the pill badges inside it.
+    local panelRadius = style.STRIP_HEIGHT / 2 + padding
+    add(glassRect(
+        style.GLASS_BACKDROP,
+        { x = panelX, y = panelY, w = panelWidth, h = layout.height },
+        { xRadius = panelRadius, yRadius = panelRadius }
+    ))
+
+    local x = panelX + padding
+    local y = panelY + padding
 
     local numberRadii = { xRadius = style.STRIP_NUMBER_SIZE / 2, yRadius = style.STRIP_NUMBER_SIZE / 2 }
     local badgeX = x + style.STRIP_NUMBER_SIZE + style.STRIP_NUMBER_GAP
 
-    for i = first, last do
+    for i = layout.first, layout.last do
         local badge = badges[i]
         local selected = (i == selectedPos)
         local badgeRadii = { xRadius = style.STRIP_HEIGHT / 2, yRadius = style.STRIP_HEIGHT / 2 }
+        -- Clicks on the circle or badge (or the text/icon on top of them)
+        -- come back to the mouse callback with this id.
+        local clickId = opts.list .. ":" .. badge.originalIndex
 
         if badge.number then
             local circleY = y + (style.STRIP_HEIGHT - style.STRIP_NUMBER_SIZE) / 2
-            add(glassRect(
+            local circle = glassRect(
                 opts.numberGlass or opts.glass,
                 { x = x, y = circleY, w = style.STRIP_NUMBER_SIZE, h = style.STRIP_NUMBER_SIZE },
                 numberRadii,
                 selected and style.HIGHLIGHT or nil,
                 selected and style.STRIP_NUMBER_SELECTED_BORDER_WIDTH or nil
-            ))
+            )
+            circle.id = clickId
+            circle.trackMouseUp = true
+            add(circle)
             add({
                 type = "text",
                 frame = {
@@ -369,13 +412,16 @@ local function drawBadgeColumn(screenFrame, opts)
             })
         end
 
-        add(glassRect(
+        local pill = glassRect(
             opts.glass,
             { x = badgeX, y = y, w = badge.width, h = style.STRIP_HEIGHT },
             badgeRadii,
             selected and style.HIGHLIGHT or nil,
             selected and style.STRIP_SELECTED_BORDER_WIDTH or nil
-        ))
+        )
+        pill.id = clickId
+        pill.trackMouseUp = true
+        add(pill)
 
         if badge.icon then
             add({
@@ -456,8 +502,10 @@ end
 
 -- state = {
 --   regularWindows, minimizedWindows: the two independent lists,
---   activeList: "regular" | "minimized" - which one j/k currently drives,
---   regularSelectedIndex, minimizedSelectedIndex: each list's own cursor,
+--   selectedIndex: index into regularWindows of the highlighted window
+--     (minimized windows are never selected),
+--   jumpLabel(position): key label for a jump position (regular windows
+--     first, then minimized), or nil when it has none,
 --   currentWindowIndex: index into regularWindows of the window that was
 --     focused before the switcher opened (minimized windows can't be
 --     focused, so this never refers to the minimized list).
@@ -474,11 +522,11 @@ function M.draw(state)
 
     -- Minimized windows have no on-screen frame to trace, so only regular
     -- ones get a border here; both kinds get a badge column below.
-    for i, window in ipairs(state.regularWindows) do
-        -- Selected window gets the blue highlight border (only while the
-        -- regular list is the active one); the window that was focused
-        -- before the switcher opened gets its own subdued marker instead.
-        local selected = state.activeList == "regular" and i == state.regularSelectedIndex
+    for i, window in ipairs(style.WINDOW_FRAMES_ENABLED and state.regularWindows or {}) do
+        -- Selected window gets the blue highlight border; the window that
+        -- was focused before the switcher opened gets its own subdued
+        -- marker instead.
+        local selected = (i == state.selectedIndex)
         local isCurrent = (i == state.currentWindowIndex)
         local color = selected and style.HIGHLIGHT or (isCurrent and style.CURRENT or style.DIM)
         local lineWidth = selected and style.SELECTED_LINE_WIDTH
@@ -486,22 +534,53 @@ function M.draw(state)
         drawWindowFrame(screenFrame, window, color, lineWidth, selected)
     end
 
-    drawBadgeColumn(screenFrame, {
+    -- Both columns are stacked in the middle of the screen - regular on
+    -- top, minimized below - sharing one width and centered together as a
+    -- group, so the pair looks like a single switcher.
+    local minimized = layoutBadgeColumn(screenFrame, {
+        list = "minimized",
+        windows = state.minimizedWindows,
+        selectedIndex = nil,
+        numberOffset = #state.regularWindows,
+        jumpLabel = state.jumpLabel,
+        maxHeight = stackedHeight(style.MINIMIZED_MAX_ROWS, style.STRIP_HEIGHT, style.STRIP_GAP),
+        glass = style.GLASS_CHIP, textColor = style.TEXT_COLOR,
+    })
+    -- The regular column gets whatever of the height budget the minimized
+    -- panel leaves, so the pair never outgrows it.
+    local regularMaxHeight = screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO - style.BACKDROP_PADDING * 2
+    if minimized then
+        regularMaxHeight = regularMaxHeight - minimized.height - style.COLUMN_GAP
+    end
+    local regular = layoutBadgeColumn(screenFrame, {
+        list = "regular",
         windows = state.regularWindows,
-        selectedIndex = state.activeList == "regular" and state.regularSelectedIndex or nil,
-        x = style.HELP_MARGIN, anchorY = style.HELP_MARGIN, anchoredToTop = true,
-        maxHeight = screenFrame.h * style.STRIP_MAX_HEIGHT_RATIO,
+        selectedIndex = state.selectedIndex,
+        numberOffset = 0,
+        jumpLabel = state.jumpLabel,
+        maxHeight = regularMaxHeight,
         glass = style.GLASS_STRIP, numberGlass = style.GLASS_NUMBER, textColor = style.STRIP_TEXT_COLOR,
     })
 
-    local minimizedMaxHeight = stackedHeight(style.MINIMIZED_MAX_ROWS, style.STRIP_HEIGHT, style.STRIP_GAP)
-    drawBadgeColumn(screenFrame, {
-        windows = state.minimizedWindows,
-        selectedIndex = state.activeList == "minimized" and state.minimizedSelectedIndex or nil,
-        x = style.HELP_MARGIN, anchorY = screenFrame.h - style.HELP_MARGIN, anchoredToTop = false,
-        maxHeight = minimizedMaxHeight,
-        glass = style.GLASS_CHIP, textColor = style.TEXT_COLOR,
-    })
+    local columns = {}
+    for _, layout in ipairs({ regular or false, minimized or false }) do
+        if layout then
+            columns[#columns + 1] = layout
+        end
+    end
+    local width, height = 0, style.COLUMN_GAP * (#columns - 1)
+    for _, layout in ipairs(columns) do
+        width = math.max(width, layout.width)
+        height = height + layout.height
+    end
+    -- Sits a little left of and above true center (by style.CENTER_OFFSET_X
+    -- and CENTER_OFFSET_Y), where the eye lands more naturally.
+    local x = (screenFrame.w - width) / 2 - style.CENTER_OFFSET_X
+    local y = (screenFrame.h - height) / 2 - style.CENTER_OFFSET_Y
+    for _, layout in ipairs(columns) do
+        drawBadgeColumn(layout, x, y, width)
+        y = y + layout.height + style.COLUMN_GAP
+    end
 
     -- controller.lua never draws with both lists empty, so there's always
     -- at least one badge here (replaceElements rejects an empty list).

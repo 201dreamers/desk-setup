@@ -1,15 +1,16 @@
--- Facade over sources + overlay: owns switcher state (the two independent
--- window lists, their selections, which one is active) and the modal
--- keymap, exposing the small surface skhd needs (show/hide) plus the
--- actions bound to keys.
+-- Facade over sources + overlay: owns switcher state (the two window lists
+-- and the selection) and the keymap, exposing the small surface skhd needs
+-- (show/hide) plus the actions bound to keys.
 --
 -- Minimized windows are always listed (in their own column, via overlay.lua)
--- rather than gated behind a toggle. "m" instead swaps which list j/k
--- drives - selection never crosses between the two lists on its own.
+-- but never selected: j/k and the arrows only move through regular windows.
+-- A minimized window is opened by its number or by clicking its badge.
 --
--- Both lists keep sources.lua's alphabetical order, and the first ten
--- windows of the active list are numbered 1-9 then 0 - pressing a digit
--- focuses that window straight away.
+-- Both lists keep sources.lua's alphabetical order. Jump numbers run across
+-- both - regular windows first, then minimized ones - and the first
+-- MAX_JUMP_POSITIONS get one: positions 1-10 are keys 1-9 then 0, and
+-- 11-20 are "a" followed by 1-9 then 0 (see jumpLabel, which overlay.lua
+-- draws on the badges).
 
 local sources = require("window_switcher.sources")
 local cache = require("window_switcher.cache")
@@ -23,23 +24,24 @@ local M = {}
 --        alt-tab feel, like macOS's own app switcher).
 local START_ON_CURRENT_WINDOW = false
 
+-- Keys past the tenth window need a prefix: "a" then a digit.
+local JUMP_PREFIX = "a"
+local MAX_JUMP_POSITIONS = 20
+
 -- Keyboard is grabbed with an eventtap rather than an hs.hotkey.modal: a
 -- modal only captures the keys bound in it, so any other key pressed while
 -- the switcher is open would still reach the previously focused window.
 -- The tap swallows every key event while open and dispatches them itself.
 local keyTap = nil
--- Both lists always travel together (same shape, same operations), so they
--- live in one table keyed by name instead of four parallel variables - every
--- function that needs "whichever list is active" does one lookup instead of
--- repeating an if/else per list.
-local lists = {
-    regular = { windows = {}, selectedIndex = 1 },
-    minimized = { windows = {}, selectedIndex = 1 },
-}
--- Index into lists.regular.windows of the window focused before opening.
+local regularWindows = {}
+local minimizedWindows = {}
+-- Index into regularWindows of the highlighted window.
+local selectedIndex = 1
+-- Index into regularWindows of the window focused before opening.
 local currentWindowIndex = nil
--- "regular" | "minimized" - which list j/k currently moves the selection in.
-local activeList = "regular"
+-- True after "a" was pressed, until the next key: that key's digit then
+-- means positions 11-20 instead of 1-10.
+local prefixPending = false
 -- Help box is hidden by default; "?" toggles it, reset to hidden on show().
 local helpVisible = false
 -- Bumped on every show()/hide(), so a revalidation queued by one show()
@@ -62,15 +64,10 @@ local function partitionMinimized(list)
 end
 
 local function refresh(all)
-    local regular, minimized = partitionMinimized(all)
-    local focusedIndex = sources.indexOfFocused(regular)
-    lists.regular.windows, currentWindowIndex = regular, focusedIndex
-    lists.minimized.windows = minimized
-
-    for _, list in pairs(lists) do
-        if list.selectedIndex > #list.windows then
-            list.selectedIndex = 1
-        end
+    regularWindows, minimizedWindows = partitionMinimized(all)
+    currentWindowIndex = sources.indexOfFocused(regularWindows)
+    if selectedIndex > #regularWindows then
+        selectedIndex = 1
     end
 end
 
@@ -81,33 +78,39 @@ local function initialSelectedIndex()
     if START_ON_CURRENT_WINDOW then
         return currentWindowIndex
     end
-    return (currentWindowIndex % #lists.regular.windows) + 1
+    return (currentWindowIndex % #regularWindows) + 1
+end
+
+-- Key sequence that jumps to a position: "1"-"9", "0" for the first ten,
+-- then "a1"-"a9", "a0" for the next ten; nil past MAX_JUMP_POSITIONS.
+local function jumpLabel(position)
+    if position > MAX_JUMP_POSITIONS then
+        return nil
+    end
+    local prefix = position > 10 and JUMP_PREFIX or ""
+    return prefix .. tostring(position % 10)
 end
 
 local function redraw()
     overlay.draw({
-        regularWindows = lists.regular.windows,
-        minimizedWindows = lists.minimized.windows,
-        activeList = activeList,
-        regularSelectedIndex = lists.regular.selectedIndex,
-        minimizedSelectedIndex = lists.minimized.selectedIndex,
+        regularWindows = regularWindows,
+        minimizedWindows = minimizedWindows,
+        selectedIndex = selectedIndex,
         currentWindowIndex = currentWindowIndex,
+        jumpLabel = jumpLabel,
         helpVisible = helpVisible,
     })
 end
 
 local function moveSelection(delta)
-    local list = lists[activeList]
-    if #list.windows == 0 then
+    if #regularWindows == 0 then
         return
     end
-    list.selectedIndex = ((list.selectedIndex - 1 + delta) % #list.windows) + 1
+    selectedIndex = ((selectedIndex - 1 + delta) % #regularWindows) + 1
     redraw()
 end
 
-local function focusSelected()
-    local list = lists[activeList]
-    local window = list.windows[list.selectedIndex]
+local function focusWindow(window)
     if window then
         if window:isMinimized() then
             window:unminimize()
@@ -117,34 +120,39 @@ local function focusSelected()
     M.hide()
 end
 
--- Digit keys 1-9 then 0 map to list positions 1-10 (overlay.lua draws the
--- same numbers on the badges). Positions past the end of the active list do
--- nothing, so a stray digit can't close the switcher.
+local function focusSelected()
+    focusWindow(regularWindows[selectedIndex])
+end
+
+-- Window at jump position `position` (regular windows first, then
+-- minimized), or nil past the end of both lists.
+local function windowAtPosition(position)
+    if position <= #regularWindows then
+        return regularWindows[position]
+    end
+    return minimizedWindows[position - #regularWindows]
+end
+
+-- Positions past the end of both lists do nothing, so a stray digit can't
+-- close the switcher.
 local function focusNumber(position)
-    local list = lists[activeList]
-    if position > #list.windows then
-        return
+    local window = windowAtPosition(position)
+    if window then
+        focusWindow(window)
     end
-    list.selectedIndex = position
-    focusSelected()
 end
 
--- Clicking anywhere in the overlay acts like pressing return/space.
-overlay.onClick(focusSelected)
-
--- Swaps which list j/k drives. Refuses to switch into an empty list (its
--- column renders nothing, so a highlight with no visible badge would look
--- like a glitch) and says so instead.
-function M.toggleActiveList()
-    local targetList = activeList == "regular" and "minimized" or "regular"
-    if #lists[targetList].windows == 0 then
-        overlay.showNotification(targetList == "minimized" and "No minimized windows" or "No regular windows")
-        return
+-- Clicking a badge opens that exact window; clicking anywhere else in the
+-- overlay acts like pressing return/space.
+overlay.onClick(function(target)
+    if not target then
+        focusSelected()
+    elseif target.list == "regular" then
+        focusWindow(regularWindows[target.index])
+    else
+        focusWindow(minimizedWindows[target.index])
     end
-    activeList = targetList
-    redraw()
-    overlay.showNotification(activeList == "regular" and "Selector: regular windows" or "Selector: minimized windows")
-end
+end)
 
 -- A window closed since it was listed can report a nil id; false keeps
 -- the table hole-free so sameIds' length check stays reliable.
@@ -180,34 +188,24 @@ end
 
 -- show() draws from the cached list for instant feedback; this rebuilds it
 -- right after, and only redraws if the windows actually changed (one was
--- opened/closed since the last background rebuild). Both lists keep their
--- selection on the same window where it still exists.
+-- opened/closed since the last background rebuild). The selection stays on
+-- the same window where it still exists.
 local function revalidate(cachedIds)
     local fresh = cache.refresh()
     if sameIds(windowIds(fresh), cachedIds) then
         return
     end
 
-    local selectedIds = {}
-    for name, list in pairs(lists) do
-        local window = list.windows[list.selectedIndex]
-        selectedIds[name] = window and window:id()
-    end
+    local selected = regularWindows[selectedIndex]
+    local selectedId = selected and selected:id()
 
     refresh(fresh)
-    if #lists.regular.windows == 0 and #lists.minimized.windows == 0 then
+    if #regularWindows == 0 and #minimizedWindows == 0 then
         M.hide()
         hs.alert.show("No windows on this Space")
         return
     end
-    if #lists[activeList].windows == 0 then
-        activeList = activeList == "regular" and "minimized" or "regular"
-    end
-    for name, list in pairs(lists) do
-        list.selectedIndex = (selectedIds[name] and indexOfId(list.windows, selectedIds[name]))
-            or (name == "regular" and initialSelectedIndex())
-            or 1
-    end
+    selectedIndex = (selectedId and indexOfId(regularWindows, selectedId)) or initialSelectedIndex()
     redraw()
 end
 
@@ -218,12 +216,12 @@ function M.show()
     -- instead of an instant "No windows" alert.
     local fromCache = cached ~= nil and #cached > 0
     refresh(fromCache and cached or cache.refresh())
-    if #lists.regular.windows == 0 and #lists.minimized.windows == 0 then
+    if #regularWindows == 0 and #minimizedWindows == 0 then
         hs.alert.show("No windows on this Space")
         return
     end
-    activeList = #lists.regular.windows > 0 and "regular" or "minimized"
-    lists.regular.selectedIndex = initialSelectedIndex()
+    selectedIndex = initialSelectedIndex()
+    prefixPending = false
     helpVisible = false
     redraw()
     keyTap:start()
@@ -253,7 +251,8 @@ local function toggleHelp()
 end
 
 -- Key name (as hs.keycodes.map reports it) -> action. Keys that need shift
--- ("?", shift-tab) are resolved in handleKey before this lookup.
+-- ("?", shift-tab), digits and the "a" prefix are resolved in actionFor
+-- before this lookup.
 local actions = {
     down = function() moveSelection(1) end,
     up = function() moveSelection(-1) end,
@@ -263,24 +262,52 @@ local actions = {
     ["return"] = focusSelected,
     space = focusSelected,
     escape = M.hide,
-    m = M.toggleActiveList,
 }
-for position = 1, 10 do
-    actions[tostring(position % 10)] = function() focusNumber(position) end
+
+-- "1".."9" -> 1..9, "0" -> 10, anything else -> nil.
+local function digitPosition(key)
+    if not key or not key:match("^%d$") then
+        return nil
+    end
+    local digit = tonumber(key)
+    return digit == 0 and 10 or digit
+end
+
+-- Returns the action for this key press, or nil to ignore it.
+local function actionFor(key, shift)
+    local position = (not shift) and digitPosition(key) or nil
+    if prefixPending then
+        prefixPending = false
+        if position then
+            return function() focusNumber(position + 10) end
+        end
+        -- Any other key cancels the prefix and then acts as usual.
+    end
+    if position then
+        return function() focusNumber(position) end
+    end
+    if not shift and key == JUMP_PREFIX then
+        prefixPending = #regularWindows + #minimizedWindows > 10
+        if prefixPending then
+            return function() overlay.showNotification(JUMP_PREFIX .. " …") end
+        end
+        return nil
+    end
+    if shift and key == "tab" then
+        return function() moveSelection(-1) end
+    end
+    if shift and key == "/" then
+        -- "?" is shift + "/".
+        return toggleHelp
+    end
+    if not shift then
+        return actions[key]
+    end
+    return nil
 end
 
 local function handleKey(event)
-    local key = hs.keycodes.map[event:getKeyCode()]
-    local shift = event:getFlags().shift
-    local action
-    if shift and key == "tab" then
-        action = function() moveSelection(-1) end
-    elseif shift and key == "/" then
-        -- "?" is shift + "/".
-        action = toggleHelp
-    elseif not shift then
-        action = actions[key]
-    end
+    local action = actionFor(hs.keycodes.map[event:getKeyCode()], event:getFlags().shift)
     if action then
         -- Run outside the tap callback: focusing a window can block on a
         -- slow app, and macOS disables a tap whose callback stalls.

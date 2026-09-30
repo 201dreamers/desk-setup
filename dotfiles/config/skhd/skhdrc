@@ -141,7 +141,7 @@ ctrl + cmd - 9 : hs -c 'windowMover.moveToSpace(9)'
 
 # Visual keyboard window switcher (current Space only), built with Hammerspoon.
 # Opens the overlay; once open, release the modifier and use tab/shift-tab/
-# arrows/j-k to move, "m" to toggle minimized windows, return to select,
+# arrows/j-k to move, digits (a+digit past 10) to jump, return to select,
 # escape to cancel. Bound to both alt-tab and cmd-tab - the latter replaces
 # macOS's native app switcher entirely (skhd consumes the keypress).
 alt - tab : hs -c 'windowSwitcher.show()'

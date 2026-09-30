@@ -3,10 +3,11 @@
 -- windowSwitcher - visual keyboard window switcher, scoped to the current Space.
 -- Trigger: skhd sends `alt-tab` / `cmd-tab` -> `hs -c 'windowSwitcher.show()'`
 -- (see skhdrc). Once the overlay is open (release the modifier key):
---   tab / right / j       -> next window
---   shift-tab / left / k  -> previous window
+--   tab / down / j        -> next window
+--   shift-tab / up / k    -> previous window
 --   1-9, 0                -> focus window with that number (0 = 10th)
---   m                     -> switch selector between regular/minimized lists
+--   a then 1-9, 0         -> focus windows 11-20
+--   click a badge         -> focus that window (click elsewhere = return)
 --   return                -> focus selected window (unminimizing if needed)
 --   escape                -> cancel
 -- Implementation is split across window_switcher/:
