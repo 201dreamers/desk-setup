@@ -45,24 +45,26 @@
         "command": "deleteFile",
         "when": "filesExplorerFocus && !(inputFocus || editorFocus)"
     },
-    // {
-    //     "key": "ctrl+h",
-    //     "command": "extension.vim_navigateLeft",
-    //     "when": "editorTextFocus && vim.active && vim.use<C-w> && !inDebugRepl && vim.mode != 'Insert'"
-    // },
-    // {
-    //     "key": "ctrl+l",
-    //     "command": "extension.vim_navigateRight",
-    //     "when": "editorTextFocus && vim.active && vim.use<C-w> && !inDebugRepl && vim.mode != 'Insert'"
-    // },
-    // {
-    //     "key": "ctrl+j",
-    //     "command": "extension.vim_navigateDown",
-    //     "when": "editorTextFocus && vim.active && vim.use<C-w> && !inDebugRepl && vim.mode != 'Insert'"
-    // },
-    // {
-    //     "key": "ctrl+k",
-    //     "command": "extension.vim_navigateUp",
-    //     "when": "editorTextFocus && vim.active && vim.use<C-w> && !inDebugRepl && vim.mode != 'Insert'"
-    // },
+    // Split navigation: move between editor groups, sidebar (file tree) and panel.
+    // Skipped in vim insert mode, terminal, text inputs, quick open and suggestions.
+    {
+        "key": "ctrl+h",
+        "command": "workbench.action.navigateLeft",
+        "when": "!terminalFocus && !inQuickOpen && !suggestWidgetVisible && !(inputFocus && !editorTextFocus) && !(editorTextFocus && vim.mode == 'Insert')"
+    },
+    {
+        "key": "ctrl+l",
+        "command": "workbench.action.navigateRight",
+        "when": "!terminalFocus && !inQuickOpen && !suggestWidgetVisible && !(inputFocus && !editorTextFocus) && !(editorTextFocus && vim.mode == 'Insert')"
+    },
+    {
+        "key": "ctrl+j",
+        "command": "workbench.action.navigateDown",
+        "when": "!terminalFocus && !inQuickOpen && !suggestWidgetVisible && !(inputFocus && !editorTextFocus) && !(editorTextFocus && vim.mode == 'Insert')"
+    },
+    {
+        "key": "ctrl+k",
+        "command": "workbench.action.navigateUp",
+        "when": "!terminalFocus && !inQuickOpen && !suggestWidgetVisible && !(inputFocus && !editorTextFocus) && !(editorTextFocus && vim.mode == 'Insert')"
+    },
 ]
