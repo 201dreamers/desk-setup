@@ -169,3 +169,6 @@ ctrl + cmd - y : ~/.config/yazi/scripts/open-standalone.sh
 # Finder
 ctrl + cmd - e : osascript -e 'tell application "Finder" to make new Finder window to home' -e 'tell application "Finder" to activate'
 
+# Finder
+ctrl + cmd + shift - o : op signin
+
