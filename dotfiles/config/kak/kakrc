@@ -1,0 +1,112 @@
+# Kakoune config, mirrors config/nvim where kakoune has an equivalent.
+# Key hints (which-key style) are built in: autoinfo shows them after
+# any prefix key (g, v, <space>, ...).
+
+# --- UI ----------------------------------------------------------------------
+
+set-option global scrolloff 8,8
+
+add-highlighter global/ number-lines -relative -hlcursor
+add-highlighter global/ show-matching
+
+set-face global CursorLine default,rgb:2c2c2c
+set-face global ColorColumn default,rgb:2c2c2c
+
+add-highlighter global/ column 80 ColorColumn
+add-highlighter global/ column 120 ColorColumn
+
+# The line highlighter takes a fixed number, so re-add it as the cursor moves.
+hook global NormalIdle .* %{ update-cursorline }
+hook global InsertIdle .* %{ update-cursorline }
+define-command -hidden update-cursorline %{
+    try %{ remove-highlighter window/cursorline }
+    add-highlighter window/cursorline line %val{cursor_line} CursorLine
+}
+
+# Cursor shape per mode: block in normal, bar in insert (DECSCUSR).
+# Kakoune does not emit cursor-shape sequences itself, so write them to
+# the client's tty; the native cursor makes the terminal cursor visible.
+set-option -add global ui_options terminal_cursor_native=yes
+
+define-command -hidden set-cursor-shape -params 1 %{
+    nop %sh{
+        tty=$(ps -o tty= -p "$kak_client_pid" | tr -d ' ')
+        [ -n "$tty" ] && [ "$tty" != "??" ] && printf '\033[%s q' "$1" > "/dev/$tty"
+    }
+}
+
+hook global ModeChange (push|pop):.*:insert %{ set-cursor-shape 6 }
+hook global ModeChange (push|pop):insert:.* %{ set-cursor-shape 2 }
+hook global ClientCreate .* %{ set-cursor-shape 2 }
+# Restore the terminal's default shape on exit.
+hook global ClientClose .* %{ set-cursor-shape 0 }
+
+# --- Indentation: 4-space soft tabs ------------------------------------------
+
+set-option global tabstop 4
+set-option global indentwidth 4
+
+# Replace a typed <tab> with spaces.
+hook global InsertChar \t %{ execute-keys -draft h@ }
+
+# --- User mode (<space>), like nvim <leader> ---------------------------------
+
+map global user w ':write<ret>' -docstring 'save file'
+map global user y '<a-|>pbcopy<ret>' -docstring 'copy to clipboard'
+map global user p '<a-!>pbpaste<ret>' -docstring 'paste clipboard after'
+map global user P '!pbpaste<ret>' -docstring 'paste clipboard before'
+
+# --- LSP (kakoune-lsp) -------------------------------------------------------
+
+# Whole block is skipped when kak-lsp is not installed.
+try %{
+    evaluate-commands %sh{
+        if command -v kak-lsp >/dev/null; then kak-lsp; else echo fail; fi
+    }
+
+    hook global WinSetOption filetype=(rust|python|lua) %{
+        lsp-enable-window
+        lsp-inlay-diagnostics-enable window
+    }
+
+    hook global BufSetOption filetype=(rust|python|lua) %{
+        hook buffer BufWritePre .* lsp-formatting-sync
+    }
+
+    set-option global modelinefmt "%opt{lsp_modeline} %opt{modelinefmt}"
+    map global user l ':enter-user-mode lsp<ret>' -docstring 'LSP mode'
+
+    # Python: jedi for completion/navigation, ruff for lint + format.
+    remove-hooks global lsp-filetype-python
+    hook -group lsp-filetype-python global BufSetOption filetype=python %{
+        set-option buffer lsp_servers %{
+            [jedi-language-server]
+            root_globs = ["pyproject.toml", "setup.py", "requirements.txt", ".git"]
+
+            [ruff]
+            args = ["server", "--quiet"]
+            root_globs = ["pyproject.toml", "ruff.toml", "setup.py", ".git"]
+            settings_section = "_"
+            [ruff.settings._.globalSettings]
+            lineLength = 88
+            "lint.select" = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "N", "PL", "RUF", "PTH", "RET", "ARG"]
+            "format.preview" = false
+        }
+    }
+
+    # Lua: same settings as nvim's lua_ls.
+    remove-hooks global lsp-filetype-lua
+    hook -group lsp-filetype-lua global BufSetOption filetype=lua %{
+        set-option buffer lsp_servers %{
+            [lua-language-server]
+            root_globs = [".git", ".hg"]
+            single_instance = false
+            settings_section = "Lua"
+            [lua-language-server.settings.Lua]
+            "runtime.version" = "LuaJIT"
+            "diagnostics.globals" = ["vim"]
+            "workspace.checkThirdParty" = false
+            "telemetry.enable" = false
+        }
+    }
+}
