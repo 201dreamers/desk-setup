@@ -10,10 +10,10 @@
 # <xbar.abouturl>https://github.com/WeibingChen17/</xbar.abouturl>
 
 # If using alongside apples default clock, one can uncomment the following -
-#formatted_date=$(date '+%d/%b/%Y')
-#printf '\xF0\x9F\x93\x85 %s\n' "$formatted_date"
+formatted_date=$(date '+%d %b %Y')
+printf '%s\n' "$formatted_date"
 # don't forget to comment out the following `date ` command:
-date "+%l:%M %p"
+# date "+%l:%M %p"
 
 echo "---"
 font="Monaco"
