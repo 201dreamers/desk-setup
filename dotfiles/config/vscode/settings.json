@@ -139,6 +139,16 @@
             "before": [ "<leader>", "t", "f" ],
             "commands": [ "actions.find" ]
         },
+        { // <leader>-? :: search across all files (Cmd+Shift+F)
+            "before": [ "<leader>", "?" ],
+            "commands": [ "workbench.action.findInFiles" ]
+        },
+
+        // == Git
+        { // <leader>-g :: source control view (Ctrl+Shift+G)
+            "before": [ "<leader>", "g" ],
+            "commands": [ "workbench.view.scm" ]
+        },
 
         // == Copy/paste
         { // <leader>-Y :: Line to clipboard
