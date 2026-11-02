@@ -88,4 +88,15 @@
         "command": "workbench.action.focusActiveEditorGroup",
         "when": "panelFocus && !terminalFocus && !inputFocus"
     },
+    // Source control: ctrl+j from the commit message goes to the changed files, ctrl+k goes back.
+    {
+        "key": "ctrl+j",
+        "command": "workbench.scm.action.focusNextResourceGroup",
+        "when": "focusedView == 'workbench.scm'"
+    },
+    {
+        "key": "ctrl+k",
+        "command": "workbench.scm.action.focusPreviousInput",
+        "when": "focusedView == 'workbench.scm'"
+    },
 ]

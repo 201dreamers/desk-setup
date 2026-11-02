@@ -145,9 +145,9 @@
         },
 
         // == Git
-        { // <leader>-g :: source control view (Ctrl+Shift+G)
+        { // <leader>-g :: source control view, focus on changed files (not the commit message)
             "before": [ "<leader>", "g" ],
-            "commands": [ "workbench.view.scm" ]
+            "commands": [ "workbench.scm.action.focusNextResourceGroup" ]
         },
 
         // == Copy/paste
